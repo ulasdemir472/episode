@@ -7,33 +7,36 @@ import { LibraryItem, LibraryStatus } from '@/domain/media';
 import { catalogService } from '@/services/tmdb';
 import { useLibraryStore } from '@/store/library-store';
 import { colors, radius, spacing } from '@/theme/tokens';
+import { useProfileStore } from '@/store/profile-store';
 
-const filters: { label: string; value: LibraryStatus }[] = [
-  { label: 'İzliyorum', value: 'watching' },
-  { label: 'İzleyeceğim', value: 'watchlist' },
-  { label: 'Tamamlandı', value: 'completed' },
-  { label: 'Bıraktım', value: 'dropped' },
+const filters: { tr: string; en: string; value: LibraryStatus }[] = [
+  { tr: 'İzliyorum', en: 'Watching', value: 'watching' },
+  { tr: 'İzleyeceğim', en: 'Watchlist', value: 'watchlist' },
+  { tr: 'Tamamlandı', en: 'Completed', value: 'completed' },
+  { tr: 'Bıraktım', en: 'Dropped', value: 'dropped' },
 ];
 
 function LibraryMediaCard({ item }: { item: LibraryItem }) {
+  const en = useProfileStore((state) => state.language) === 'en';
   const watchedEpisodes = useLibraryStore((state) => state.watchedEpisodes);
   const series = useQuery({ queryKey: ['series', item.media.id], queryFn: () => catalogService.seriesDetails(item.media.id), enabled: item.media.type === 'tv' && item.status === 'watching', staleTime: 60 * 60_000 });
   const nextEpisode = series.data?.seasons.flatMap((season) => Array.from({ length: season.episodeCount }, (_, index) => ({ season: season.number, episode: index + 1 }))).find((episode) => !watchedEpisodes[`${item.media.id}:${episode.season}:${episode.episode}`]);
   const percent = item.progress?.total ? Math.min(100, item.progress.watched / item.progress.total * 100) : 0;
-  return <View style={styles.card}><MediaCard media={item.media} width={158} />{item.progress && <><View style={styles.progressTrack}><View style={[styles.progress, { width: `${percent}%` }]} /></View><Text style={styles.progressLabel}>{item.progress.watched}/{item.progress.total} bölüm izlendi</Text>{item.status === 'watching' && (nextEpisode ?? item.progress.nextEpisode) && <Text style={styles.nextLabel}>Sıradaki · S{(nextEpisode ?? item.progress.nextEpisode)!.season} B{(nextEpisode ?? item.progress.nextEpisode)!.episode}</Text>}</>}</View>;
+  return <View style={styles.card}><MediaCard media={item.media} width={158} />{item.progress && <><View style={styles.progressTrack}><View style={[styles.progress, { width: `${percent}%` }]} /></View><Text style={styles.progressLabel}>{item.progress.watched}/{item.progress.total} {en ? 'episodes watched' : 'bölüm izlendi'}</Text>{item.status === 'watching' && (nextEpisode ?? item.progress.nextEpisode) && <Text style={styles.nextLabel}>{en ? 'Next' : 'Sıradaki'} · S{(nextEpisode ?? item.progress.nextEpisode)!.season} E{(nextEpisode ?? item.progress.nextEpisode)!.episode}</Text>}</>}</View>;
 }
 
 export default function LibraryScreen() {
   const [filter, setFilter] = useState<LibraryStatus>('watching');
+  const en = useProfileStore((state) => state.language) === 'en';
   const allItems = useLibraryStore((state) => state.items);
   const items = allItems.filter((item) => item.status === filter);
 
   return <Screen>
-    <View style={styles.header}><Text style={styles.kicker}>KİŞİSEL ARŞİV</Text><Text style={styles.title}>Listem</Text><Text style={styles.summary}>{allItems.length} yapım · izleme durumuna göre düzenlendi</Text></View>
+    <View style={styles.header}><Text style={styles.kicker}>{en ? 'PERSONAL ARCHIVE' : 'KİŞİSEL ARŞİV'}</Text><Text style={styles.title}>{en ? 'My library' : 'Listem'}</Text><Text style={styles.summary}>{allItems.length} {en ? 'titles · organized by status' : 'yapım · izleme durumuna göre düzenlendi'}</Text></View>
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
       {filters.map((item) => {
         const count = allItems.filter((libraryItem) => libraryItem.status === item.value).length;
-        return <Pressable key={item.value} style={[styles.filter, filter === item.value && styles.active]} onPress={() => setFilter(item.value)}><Text style={[styles.filterText, filter === item.value && styles.activeText]}>{item.label}</Text><View style={[styles.count, filter === item.value && styles.activeCount]}><Text style={[styles.countText, filter === item.value && styles.activeCountText]}>{count}</Text></View></Pressable>;
+        return <Pressable key={item.value} style={[styles.filter, filter === item.value && styles.active]} onPress={() => setFilter(item.value)}><Text style={[styles.filterText, filter === item.value && styles.activeText]}>{en ? item.en : item.tr}</Text><View style={[styles.count, filter === item.value && styles.activeCount]}><Text style={[styles.countText, filter === item.value && styles.activeCountText]}>{count}</Text></View></Pressable>;
       })}
     </ScrollView>
     <FlatList scrollEnabled={false} data={items} keyExtractor={(item) => `${item.status}-${item.media.id}`} numColumns={2} columnWrapperStyle={styles.row} contentContainerStyle={styles.grid} renderItem={({ item }) => <LibraryMediaCard item={item} />} ListEmptyComponent={<View style={styles.emptyBox}><Text style={styles.emptyTitle}>Burada henüz bir şey yok</Text><Text style={styles.empty}>Bir dizinin bölümünü işaretlediğinde otomatik olarak “İzliyorum” listesine taşınır.</Text></View>} />

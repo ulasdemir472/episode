@@ -9,6 +9,7 @@ import { Screen } from '@/components/Screen';
 import { Media } from '@/domain/media';
 import { catalogService } from '@/services/tmdb';
 import { useLibraryStore } from '@/store/library-store';
+import { useProfileStore } from '@/store/profile-store';
 import { colors, radius, spacing } from '@/theme/tokens';
 
 export default function MediaDetailScreen() {
@@ -21,7 +22,10 @@ export default function MediaDetailScreen() {
   const remove = useLibraryStore((state) => state.remove);
   const toggleEpisode = useLibraryStore((state) => state.toggleEpisode);
   const markThrough = useLibraryStore((state) => state.markThrough);
+  const favorites = useProfileStore((state) => state.favorites);
+  const toggleFavorite = useProfileStore((state) => state.toggleFavorite);
   const saved = media ? items.some((item) => item.media.id === media.id) : false;
+  const favorite = media ? favorites.some((item) => item.id === media.id) : false;
   const currentStatus = media ? items.find((item) => item.media.id === media.id)?.status : undefined;
 
   const seriesQuery = useQuery({
@@ -96,6 +100,7 @@ export default function MediaDetailScreen() {
     <ImageBackground source={{ uri: media.backdropUrl }} style={styles.hero}>
       <LinearGradient colors={['rgba(7,7,10,.1)', colors.background]} style={StyleSheet.absoluteFill} />
       <Pressable accessibilityLabel="Geri" onPress={() => router.back()} style={styles.back}><Ionicons name="chevron-back" color="#fff" size={24} /></Pressable>
+      <Pressable accessibilityLabel={favorite ? 'Favorilerden çıkar' : 'Favorilere ekle'} onPress={() => { Haptics.selectionAsync(); toggleFavorite(media); }} style={styles.favorite}><Ionicons name={favorite ? 'heart' : 'heart-outline'} color={favorite ? colors.primary : '#fff'} size={23} /></Pressable>
     </ImageBackground>
     <View style={styles.body}>
       <Text style={styles.type}>{media.type === 'tv' ? 'DİZİ' : 'FİLM'} · {media.year}</Text>
@@ -134,7 +139,7 @@ export default function MediaDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  hero: { height: 330 }, back: { position: 'absolute', top: spacing.md, left: spacing.md, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,.45)', alignItems: 'center', justifyContent: 'center' },
+  hero: { height: 330 }, back: { position: 'absolute', top: spacing.md, left: spacing.md, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,.45)', alignItems: 'center', justifyContent: 'center' }, favorite: { position: 'absolute', top: spacing.md, right: spacing.md, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,.45)', alignItems: 'center', justifyContent: 'center' },
   body: { paddingHorizontal: spacing.lg, marginTop: -45 }, type: { color: colors.primary, fontSize: 10, fontWeight: '900', letterSpacing: 1.5 }, title: { color: colors.text, fontSize: 38, lineHeight: 42, fontWeight: '900', letterSpacing: -1.3, marginTop: spacing.sm },
   meta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md }, score: { flexDirection: 'row', alignItems: 'center', gap: 5 }, rating: { color: colors.text, fontWeight: '800', fontSize: 12 }, imdbBadge: { flexDirection: 'row', borderRadius: 5, overflow: 'hidden' }, imdbLabel: { backgroundColor: '#F5C518', color: '#000', fontSize: 11, fontWeight: '900', paddingHorizontal: 6, paddingVertical: 3 }, imdbValue: { backgroundColor: colors.elevated, color: colors.text, fontSize: 11, fontWeight: '800', paddingHorizontal: 7, paddingVertical: 3 },
   genres: { color: colors.muted, fontSize: 12, marginTop: spacing.sm }, overview: { color: '#C1BFC4', lineHeight: 23, fontSize: 14, marginTop: spacing.lg }, action: { marginTop: spacing.lg, height: 52, backgroundColor: colors.primary, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 }, saved: { backgroundColor: colors.success }, actionText: { color: '#fff', fontWeight: '900' }, watchedAction: { marginTop: spacing.sm, height: 50, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 }, watchedActive: { backgroundColor: colors.secondary, borderColor: colors.secondary }, watchedText: { color: colors.text, fontWeight: '800' }, disabled: { opacity: 0.45 }, dropAction: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, padding: spacing.md }, dropText: { color: colors.muted, fontSize: 12, fontWeight: '700' }, resumeText: { color: colors.success },

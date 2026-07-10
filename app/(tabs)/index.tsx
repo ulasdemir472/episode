@@ -3,24 +3,29 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
+import type { Href } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { MediaCard } from '@/components/MediaCard';
 import { SectionHeader } from '@/components/SectionHeader';
 import { catalogService } from '@/services/tmdb';
 import { colors, radius, spacing } from '@/theme/tokens';
+import { useProfileStore } from '@/store/profile-store';
 
 export default function HomeScreen() {
+  const profile = useProfileStore();
+  const en = profile.language === 'en';
+  const initials = `${profile.firstName[0] ?? 'E'}${profile.lastName[0] ?? ''}`.toUpperCase();
   const { data = [], isLoading, isError, refetch } = useQuery({ queryKey: ['trending'], queryFn: catalogService.trending });
   const hero = data[0];
   return <Screen>
-    <View style={styles.top}><View><Text style={styles.eyebrow}>BU GECE NE İZLİYORUZ?</Text><Text style={styles.logo}>episode<Text style={styles.dot}>.</Text></Text></View><View style={styles.avatar}><Text style={styles.avatarText}>UD</Text></View></View>
+    <View style={styles.top}><View><Text style={styles.eyebrow}>{en ? 'WHAT ARE WE WATCHING?' : 'BU GECE NE İZLİYORUZ?'}</Text><Text style={styles.logo}>episode<Text style={styles.dot}>.</Text></Text></View><Pressable onPress={() => router.push('/profile' as Href)} style={styles.avatar}><Text style={styles.avatarText}>{initials}</Text></Pressable></View>
     {isLoading ? <ActivityIndicator color={colors.primary} style={{ height: 430 }} /> : isError ? <View style={styles.catalogError}><Ionicons name="cloud-offline-outline" size={32} color={colors.muted} /><Text style={styles.errorTitle}>Katalog yüklenemedi</Text><Pressable onPress={() => refetch()}><Text style={styles.retry}>Tekrar dene</Text></Pressable></View> : hero && <ImageBackground source={{ uri: hero.backdropUrl }} style={styles.hero} imageStyle={styles.heroImage}>
       <LinearGradient colors={['transparent', 'rgba(7,7,10,.3)', colors.background]} style={StyleSheet.absoluteFill} />
       <View style={styles.heroContent}><View style={styles.badge}><Text style={styles.badgeText}>HAFTANIN SEÇİMİ</Text></View><Text style={styles.heroTitle}>{hero.title}</Text><Text numberOfLines={2} style={styles.overview}>{hero.overview}</Text><Pressable style={styles.button} onPress={() => router.push({ pathname: '/media/[id]', params: { id: String(hero.id), data: JSON.stringify(hero) } })}><Ionicons name="play" size={17} color="#fff" /><Text style={styles.buttonText}>Detayları Gör</Text></Pressable></View>
     </ImageBackground>}
-    <SectionHeader title="Gündemde" caption="BU HAFTA" />
+    <SectionHeader title={en ? 'Trending' : 'Gündemde'} caption={en ? 'THIS WEEK' : 'BU HAFTA'} />
     <FlatList horizontal data={data} keyExtractor={(item) => String(item.id)} renderItem={({ item }) => <MediaCard media={item} />} contentContainerStyle={styles.list} showsHorizontalScrollIndicator={false} />
-    <SectionHeader title="Senin için" caption="KÜRATÖR SEÇİMİ" />
+    <SectionHeader title={en ? 'For you' : 'Senin için'} caption={en ? 'CURATED' : 'KÜRATÖR SEÇİMİ'} />
     <FlatList horizontal data={[...data].reverse()} keyExtractor={(item) => `rec-${item.id}`} renderItem={({ item }) => <MediaCard media={item} width={128} />} contentContainerStyle={styles.list} showsHorizontalScrollIndicator={false} />
   </Screen>;
 }
