@@ -6,9 +6,8 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
     "runtimeVersion": {
-      "policy": "fingerprint"
+      "policy": "appVersion"
     },
     "ios": {
       "supportsTablet": true,
@@ -23,7 +22,6 @@
         "backgroundColor": "#07070A"
       },
       "permissions": [
-        "POST_NOTIFICATIONS",
         "POST_NOTIFICATIONS"
       ]
     },

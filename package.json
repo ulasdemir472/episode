@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@expo/vector-icons": "latest",
-    "@react-native-async-storage/async-storage": "latest",
+    "@react-native-async-storage/async-storage": "2.2.0",
     "@tanstack/react-query": "^5.90.0",
     "expo": "~57.0.0",
     "expo-blur": "latest",
@@ -32,7 +32,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.0",
-    "react-native-safe-area-context": "latest",
+    "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "latest",
     "react-native-web": "^0.21.2",
     "zustand": "^5.0.8"
@@ -47,6 +47,6 @@
     "eslint-config-expo": "latest",
     "jest": "^29.7.0",
     "jest-expo": "latest",
-    "typescript": "~5.9.2"
+    "typescript": "~6.0.3"
   }
 }
