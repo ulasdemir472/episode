@@ -2,7 +2,7 @@
   "cli": { "version": ">= 16.17.0", "appVersionSource": "remote" },
   "build": {
     "development": { "developmentClient": true, "distribution": "internal" },
-    "preview": { "distribution": "internal", "channel": "preview" },
+    "preview": { "distribution": "internal", "channel": "preview", "autoIncrement": true },
     "production": { "autoIncrement": true, "channel": "production" }
   },
   "submit": {
