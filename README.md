@@ -6,7 +6,7 @@ Film ve dizileri keşfetmek, izleme listelerini yönetmek ve yeni bölümleri ta
 
 - Sinematik koyu tema, erişilebilir sekme navigasyonu ve responsive kartlar
 - Ana sayfa, keşif/arama, yeni bölümler, kişisel liste ve detay ekranı
-- TMDB katalog adaptörü; anahtarsız çalışabilen demo modu
+- TMDB üzerinden tamamen dinamik film, dizi, sezon, bölüm ve yayın takvimi
 - AsyncStorage üzerinde kalıcı izleme listesi
 - Bildirim izni ve yerel hatırlatıcı altyapısı
 - TypeScript strict mode, ESLint, Jest ve GitHub Actions kalite kapısı

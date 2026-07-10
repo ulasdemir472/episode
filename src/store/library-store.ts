@@ -36,8 +36,9 @@ export const useLibraryStore = create<LibraryState>()(persist((set, get) => ({
     const watchedEpisodes = { ...state.watchedEpisodes };
     if (watchedEpisodes[key]) delete watchedEpisodes[key]; else watchedEpisodes[key] = true;
     const count = watchedCount(watchedEpisodes, media.id);
-    const status: LibraryStatus = totalEpisodes > 0 && count >= totalEpisodes ? 'completed' : 'watching';
-    return { watchedEpisodes, items: updateLibraryItem(state.items, media, status, count, totalEpisodes) };
+    const knownTotal = totalEpisodes || state.items.find((item) => item.media.id === media.id)?.progress?.total || 0;
+    const status: LibraryStatus = knownTotal > 0 && count >= knownTotal ? 'completed' : 'watching';
+    return { watchedEpisodes, items: updateLibraryItem(state.items, media, status, count, knownTotal) };
   }),
   markThrough: (media, season, episode, seasons) => set((state) => {
     const watchedEpisodes = { ...state.watchedEpisodes };
