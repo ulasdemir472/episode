@@ -1,5 +1,5 @@
 export type MediaType = 'tv' | 'movie';
-export type LibraryStatus = 'watching' | 'watchlist' | 'completed';
+export type LibraryStatus = 'watching' | 'watchlist' | 'completed' | 'dropped';
 
 export interface Media {
   id: number;
