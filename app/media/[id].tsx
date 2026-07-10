@@ -1,24 +1,100 @@
-import { ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { ActivityIndicator, Image, ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { useQuery } from '@tanstack/react-query';
 import { Screen } from '@/components/Screen';
 import { Media } from '@/domain/media';
+import { catalogService } from '@/services/tmdb';
 import { useLibraryStore } from '@/store/library-store';
 import { colors, radius, spacing } from '@/theme/tokens';
 
 export default function MediaDetailScreen() {
   const params = useLocalSearchParams<{ data?: string }>();
-  const media = params.data ? JSON.parse(params.data) as Media : undefined;
-  const saved = useLibraryStore((state) => media ? state.isSaved(media.id) : false);
-  const upsert = useLibraryStore((state) => state.upsert); const remove = useLibraryStore((state) => state.remove);
+  const media = useMemo(() => params.data ? JSON.parse(params.data) as Media : undefined, [params.data]);
+  const [season, setSeason] = useState<number>();
+  const items = useLibraryStore((state) => state.items);
+  const watchedEpisodes = useLibraryStore((state) => state.watchedEpisodes);
+  const upsert = useLibraryStore((state) => state.upsert);
+  const remove = useLibraryStore((state) => state.remove);
+  const toggleEpisode = useLibraryStore((state) => state.toggleEpisode);
+  const saved = media ? items.some((item) => item.media.id === media.id) : false;
+
+  const seriesQuery = useQuery({
+    queryKey: ['series', media?.id], queryFn: () => catalogService.seriesDetails(media!.id),
+    enabled: media?.type === 'tv',
+  });
+  const activeSeason = season ?? seriesQuery.data?.seasons[0]?.number;
+
+  const episodesQuery = useQuery({
+    queryKey: ['episodes', media?.id, activeSeason],
+    queryFn: () => catalogService.seasonEpisodes(media!.id, activeSeason!),
+    enabled: media?.type === 'tv' && Boolean(activeSeason),
+  });
+  const imdbTitleQuery = useQuery({
+    queryKey: ['imdb-title', media?.type, media?.id], queryFn: () => catalogService.imdbTitleRating(media!),
+    enabled: Boolean(media && process.env.EXPO_PUBLIC_OMDB_API_KEY), staleTime: 24 * 60 * 60_000,
+  });
+  const imdbEpisodesQuery = useQuery({
+    queryKey: ['imdb-episodes', media?.id, activeSeason],
+    queryFn: () => catalogService.imdbEpisodeRatings(media!.title, activeSeason!, episodesQuery.data!),
+    enabled: Boolean(media && activeSeason && episodesQuery.data?.length && process.env.EXPO_PUBLIC_OMDB_API_KEY),
+    staleTime: 24 * 60 * 60_000,
+  });
+
   if (!media) return null;
-  const toggle = () => {
+  const toggleSaved = () => {
     Haptics.selectionAsync();
-    if (saved) remove(media.id);
-    else upsert(media, 'watchlist');
+    if (saved) remove(media.id); else upsert(media, 'watchlist');
   };
-  return <Screen><ImageBackground source={{ uri: media.backdropUrl }} style={styles.hero}><LinearGradient colors={['rgba(7,7,10,.1)', colors.background]} style={StyleSheet.absoluteFill} /><Pressable accessibilityLabel="Geri" onPress={() => router.back()} style={styles.back}><Ionicons name="chevron-back" color="#fff" size={24} /></Pressable></ImageBackground><View style={styles.body}><Text style={styles.type}>{media.type === 'tv' ? 'DİZİ' : 'FİLM'} · {media.year}</Text><Text style={styles.title}>{media.title}</Text><View style={styles.meta}><Ionicons name="star" color={colors.warning} size={15} /><Text style={styles.rating}>{media.rating}</Text><Text style={styles.genres}>{media.genres.join('  ·  ')}</Text></View><Text style={styles.overview}>{media.overview}</Text><Pressable style={[styles.action, saved && styles.saved]} onPress={toggle}><Ionicons name={saved ? 'checkmark' : 'add'} size={21} color="#fff" /><Text style={styles.actionText}>{saved ? 'Listemde' : 'Listeme ekle'}</Text></Pressable><View style={styles.rule} /><Text style={styles.section}>İzleme durumu</Text><Text style={styles.hint}>Listene ekledikten sonra bölümleri izledikçe işaretleyebilir ve yeni bölüm bildirimleri alabilirsin.</Text></View></Screen>;
+  const watchedCount = episodesQuery.data?.filter((episode) => watchedEpisodes[`${media.id}:${episode.seasonNumber}:${episode.number}`]).length ?? 0;
+
+  return <Screen>
+    <ImageBackground source={{ uri: media.backdropUrl }} style={styles.hero}>
+      <LinearGradient colors={['rgba(7,7,10,.1)', colors.background]} style={StyleSheet.absoluteFill} />
+      <Pressable accessibilityLabel="Geri" onPress={() => router.back()} style={styles.back}><Ionicons name="chevron-back" color="#fff" size={24} /></Pressable>
+    </ImageBackground>
+    <View style={styles.body}>
+      <Text style={styles.type}>{media.type === 'tv' ? 'DİZİ' : 'FİLM'} · {media.year}</Text>
+      <Text style={styles.title}>{media.title}</Text>
+      <View style={styles.meta}>
+        <View style={styles.score}><Ionicons name="star" color={colors.warning} size={15} /><Text style={styles.rating}>{media.rating} TMDB</Text></View>
+        {imdbTitleQuery.data && <View style={styles.imdbBadge}><Text style={styles.imdbLabel}>IMDb</Text><Text style={styles.imdbValue}>{imdbTitleQuery.data}</Text></View>}
+      </View>
+      {media.genres.length > 0 && <Text style={styles.genres}>{media.genres.join('  ·  ')}</Text>}
+      <Text style={styles.overview}>{media.overview}</Text>
+      <Pressable style={[styles.action, saved && styles.saved]} onPress={toggleSaved}><Ionicons name={saved ? 'checkmark' : 'add'} size={21} color="#fff" /><Text style={styles.actionText}>{saved ? 'Listemde' : 'Listeme ekle'}</Text></Pressable>
+
+      {media.type === 'tv' && <>
+        <View style={styles.rule} />
+        <View style={styles.sectionRow}><View><Text style={styles.section}>Bölümler</Text>{activeSeason && <Text style={styles.progressText}>{watchedCount}/{episodesQuery.data?.length ?? 0} izlendi</Text>}</View></View>
+        {seriesQuery.isLoading ? <ActivityIndicator color={colors.primary} style={styles.loader} /> :
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.seasons}>
+            {seriesQuery.data?.seasons.map((item) => <Pressable key={item.id} onPress={() => setSeason(item.number)} style={[styles.season, activeSeason === item.number && styles.seasonActive]}><Text style={[styles.seasonText, activeSeason === item.number && styles.seasonTextActive]}>{item.number}. Sezon</Text><Text style={[styles.seasonCount, activeSeason === item.number && styles.seasonTextActive]}>{item.episodeCount} bölüm</Text></Pressable>)}
+          </ScrollView>}
+        {episodesQuery.isLoading ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : episodesQuery.isError ? <Text style={styles.error}>Bölümler yüklenemedi. API anahtarını ve bağlantını kontrol et.</Text> :
+          <View style={styles.episodes}>{episodesQuery.data?.map((episode) => {
+            const key = `${media.id}:${episode.seasonNumber}:${episode.number}`;
+            const watched = Boolean(watchedEpisodes[key]);
+            const imdb = imdbEpisodesQuery.data?.[episode.number];
+            return <View key={episode.id} style={[styles.episode, watched && styles.episodeWatched]}>
+              {episode.stillUrl ? <Image source={{ uri: episode.stillUrl }} style={styles.still} /> : <View style={[styles.still, styles.stillFallback]}><Ionicons name="film-outline" size={24} color={colors.muted} /></View>}
+              <View style={styles.episodeInfo}><Text style={styles.episodeNo}>BÖLÜM {episode.number}</Text><Text style={styles.episodeTitle} numberOfLines={2}>{episode.title}</Text><View style={styles.episodeMeta}><Text style={styles.episodeMetaText}>{episode.runtime ? `${episode.runtime} dk` : episode.airDate?.slice(0, 4)}</Text><Ionicons name="star" color={colors.warning} size={11} /><Text style={styles.episodeMetaText}>{episode.tmdbRating} TMDB</Text>{imdb && <Text style={styles.miniImdb}>IMDb {imdb}</Text>}</View></View>
+              <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: watched }} accessibilityLabel={`${episode.number}. bölümü izlendi işaretle`} onPress={() => { Haptics.selectionAsync(); toggleEpisode(media, episode.seasonNumber, episode.number); }} style={[styles.check, watched && styles.checkActive]}><Ionicons name="checkmark" size={20} color={watched ? '#fff' : colors.muted} /></Pressable>
+            </View>;
+          })}</View>}
+      </>}
+    </View>
+  </Screen>;
 }
-const styles = StyleSheet.create({ hero: { height: 330 }, back: { position: 'absolute', top: spacing.md, left: spacing.md, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,.45)', alignItems: 'center', justifyContent: 'center' }, body: { paddingHorizontal: spacing.lg, marginTop: -45 }, type: { color: colors.primary, fontSize: 10, fontWeight: '900', letterSpacing: 1.5 }, title: { color: colors.text, fontSize: 38, lineHeight: 42, fontWeight: '900', letterSpacing: -1.3, marginTop: spacing.sm }, meta: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: spacing.md }, rating: { color: colors.text, fontWeight: '800' }, genres: { color: colors.muted, fontSize: 12 }, overview: { color: '#C1BFC4', lineHeight: 23, fontSize: 14, marginTop: spacing.lg }, action: { marginTop: spacing.lg, height: 52, backgroundColor: colors.primary, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 }, saved: { backgroundColor: colors.success }, actionText: { color: '#fff', fontWeight: '900' }, rule: { height: 1, backgroundColor: colors.border, marginVertical: spacing.xl }, section: { color: colors.text, fontSize: 18, fontWeight: '800' }, hint: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: spacing.sm } });
+
+const styles = StyleSheet.create({
+  hero: { height: 330 }, back: { position: 'absolute', top: spacing.md, left: spacing.md, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,.45)', alignItems: 'center', justifyContent: 'center' },
+  body: { paddingHorizontal: spacing.lg, marginTop: -45 }, type: { color: colors.primary, fontSize: 10, fontWeight: '900', letterSpacing: 1.5 }, title: { color: colors.text, fontSize: 38, lineHeight: 42, fontWeight: '900', letterSpacing: -1.3, marginTop: spacing.sm },
+  meta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md }, score: { flexDirection: 'row', alignItems: 'center', gap: 5 }, rating: { color: colors.text, fontWeight: '800', fontSize: 12 }, imdbBadge: { flexDirection: 'row', borderRadius: 5, overflow: 'hidden' }, imdbLabel: { backgroundColor: '#F5C518', color: '#000', fontSize: 11, fontWeight: '900', paddingHorizontal: 6, paddingVertical: 3 }, imdbValue: { backgroundColor: colors.elevated, color: colors.text, fontSize: 11, fontWeight: '800', paddingHorizontal: 7, paddingVertical: 3 },
+  genres: { color: colors.muted, fontSize: 12, marginTop: spacing.sm }, overview: { color: '#C1BFC4', lineHeight: 23, fontSize: 14, marginTop: spacing.lg }, action: { marginTop: spacing.lg, height: 52, backgroundColor: colors.primary, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 }, saved: { backgroundColor: colors.success }, actionText: { color: '#fff', fontWeight: '900' },
+  rule: { height: 1, backgroundColor: colors.border, marginVertical: spacing.xl }, sectionRow: { flexDirection: 'row', justifyContent: 'space-between' }, section: { color: colors.text, fontSize: 22, fontWeight: '900' }, progressText: { color: colors.success, fontSize: 11, fontWeight: '700', marginTop: 4 }, loader: { marginVertical: spacing.xl }, seasons: { gap: spacing.sm, paddingVertical: spacing.lg }, season: { minWidth: 105, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, seasonActive: { backgroundColor: colors.primary, borderColor: colors.primary }, seasonText: { color: colors.text, fontWeight: '800', fontSize: 13 }, seasonTextActive: { color: '#fff' }, seasonCount: { color: colors.muted, fontSize: 10, marginTop: 3 },
+  episodes: { gap: spacing.sm }, episode: { flexDirection: 'row', alignItems: 'center', minHeight: 92, padding: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border }, episodeWatched: { borderColor: 'rgba(101,214,166,.35)' }, still: { width: 92, height: 62, borderRadius: radius.sm, backgroundColor: colors.elevated }, stillFallback: { alignItems: 'center', justifyContent: 'center' }, episodeInfo: { flex: 1, paddingHorizontal: spacing.sm }, episodeNo: { color: colors.primary, fontSize: 8, fontWeight: '900', letterSpacing: 1 }, episodeTitle: { color: colors.text, fontSize: 13, fontWeight: '800', marginTop: 3 }, episodeMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 7 }, episodeMetaText: { color: colors.muted, fontSize: 9 }, miniImdb: { color: '#F5C518', fontSize: 9, fontWeight: '800', marginLeft: 3 }, check: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }, checkActive: { backgroundColor: colors.success, borderColor: colors.success }, error: { color: colors.primary, lineHeight: 20, marginVertical: spacing.lg },
+});

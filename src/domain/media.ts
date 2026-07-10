@@ -29,3 +29,28 @@ export interface EpisodeRelease {
   watched: boolean;
 }
 
+export interface SeasonSummary {
+  id: number;
+  number: number;
+  name: string;
+  episodeCount: number;
+  airDate?: string;
+  posterUrl?: string;
+}
+
+export interface SeriesDetails {
+  seasons: SeasonSummary[];
+  episodeRunTime?: number;
+}
+
+export interface EpisodeDetails {
+  id: number;
+  number: number;
+  seasonNumber: number;
+  title: string;
+  overview: string;
+  airDate?: string;
+  runtime?: number;
+  stillUrl?: string;
+  tmdbRating: number;
+}

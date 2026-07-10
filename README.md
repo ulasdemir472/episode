@@ -27,6 +27,24 @@ Terminalde çıkan QR kodu Expo Go ile okut. Android emülatör için `pnpm andr
 
 Gerçek katalog için [TMDB API ayarlarından](https://www.themoviedb.org/settings/api) bir **v4 Read Access Token** oluşturup `.env` içindeki `EXPO_PUBLIC_TMDB_ACCESS_TOKEN` değerine yaz. Bu değişken istemci paketine dahil olur; ilk prototip için uygundur, ancak üretimde token'ı mobil uygulamaya gömmek yerine kendi backend/BFF servisinde sakla.
 
+### TMDB ve IMDb puanları
+
+1. [TMDB](https://www.themoviedb.org/) hesabı aç ve e-postanı doğrula.
+2. `Settings → API → Request an API Key → Developer` yolunu izleyip uygulama formunu doldur.
+3. API sayfasındaki uzun **API Read Access Token** değerini `.env` dosyasına ekle:
+
+```env
+EXPO_PUBLIC_TMDB_ACCESS_TOKEN=eyJhbGciOiJIUzI1NiJ9...
+```
+
+IMDb'nin herkese açık resmi bir API'si yoktur. İsteğe bağlı IMDb puanları için [OMDb API](https://www.omdbapi.com/apikey.aspx) anahtarı alıp ekleyebilirsin:
+
+```env
+EXPO_PUBLIC_OMDB_API_KEY=anahtarin
+```
+
+Anahtarları ekledikten sonra Metro'yu `pnpm start --clear` ile yeniden başlat. EAS preview build içinde kullanmak için aynı değişkenleri Expo dashboard'unda `Project → Environment variables → preview` alanına ekle ve yeni build oluştur. OMDb anahtarı yoksa dizi ve bölüm ekranlarında TMDB puanları gösterilmeye devam eder.
+
 ## Kontroller
 
 ```bash
