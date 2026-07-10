@@ -12,7 +12,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.episodeapp.mobile"
+      "bundleIdentifier": "com.episodeapp.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.episodeapp.mobile",
@@ -20,6 +23,7 @@
         "backgroundColor": "#07070A"
       },
       "permissions": [
+        "POST_NOTIFICATIONS",
         "POST_NOTIFICATIONS"
       ]
     },
@@ -45,7 +49,8 @@
       }
     },
     "updates": {
-      "fallbackToCacheTimeout": 0
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/06b78221-b54d-415e-b09f-1b1a654393cf"
     },
     "owner": "ulasdemir472"
   }

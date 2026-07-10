@@ -28,6 +28,7 @@
     "expo-router": "latest",
     "expo-splash-screen": "latest",
     "expo-status-bar": "latest",
+    "expo-updates": "~57.0.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.0",
