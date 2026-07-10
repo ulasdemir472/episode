@@ -7,6 +7,7 @@ Film ve dizileri keşfetmek, izleme listelerini yönetmek ve yeni bölümleri ta
 - Sinematik koyu tema, erişilebilir sekme navigasyonu ve responsive kartlar
 - Ana sayfa, keşif/arama, yeni bölümler, kişisel liste ve detay ekranı
 - TMDB üzerinden tamamen dinamik film, dizi, sezon, bölüm ve yayın takvimi
+- TTL, stale-if-error ve istek birleştirme destekli kalıcı API cache katmanı
 - AsyncStorage üzerinde kalıcı izleme listesi
 - Bildirim izni ve yerel hatırlatıcı altyapısı
 - TypeScript strict mode, ESLint, Jest ve GitHub Actions kalite kapısı
@@ -70,12 +71,15 @@ Mobil istemcinin yanına küçük bir backend-for-frontend eklenmeli. Bu servis 
 
 Kimlik doğrulama için passkey/Apple/Google, hata takibi için Sentry, ürün analitiği için gizlilik odaklı PostHog ve backend tarafında idempotent cron/queue işleri önerilir. TMDB görsel ve veri kullanım şartları ile zorunlu atıf metni mağaza yayını öncesinde eklenmelidir.
 
+İstemci cache politikaları, veri akışı ve veritabanına geçiş sınırları [mimari dokümanında](docs/architecture.md) açıklanmıştır.
+
 ## Klasör yapısı
 
 ```text
 app/                 Expo Router ekranları
 src/components/      Tekrar kullanılabilir UI
 src/domain/          Framework bağımsız alan tipleri
+src/hooks/           Tekrar kullanılabilir React hook'ları
 src/services/        Dış servis ve cihaz adaptörleri
 src/store/           Kalıcı istemci durumu
 src/theme/           Tasarım tokenları

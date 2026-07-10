@@ -9,7 +9,10 @@ import { useLibraryStore } from '@/store/library-store';
 import { colors, radius, spacing } from '@/theme/tokens';
 import { useProfileStore } from '@/store/profile-store';
 
-const filters: { tr: string; en: string; value: LibraryStatus }[] = [
+type LibraryFilter = LibraryStatus | 'favorites';
+
+const filters: { tr: string; en: string; value: LibraryFilter }[] = [
+  { tr: 'Favorilerim', en: 'Favorites', value: 'favorites' },
   { tr: 'İzliyorum', en: 'Watching', value: 'watching' },
   { tr: 'İzleyeceğim', en: 'Watchlist', value: 'watchlist' },
   { tr: 'Tamamlandı', en: 'Completed', value: 'completed' },
@@ -26,16 +29,19 @@ function LibraryMediaCard({ item }: { item: LibraryItem }) {
 }
 
 export default function LibraryScreen() {
-  const [filter, setFilter] = useState<LibraryStatus>('watching');
+  const [filter, setFilter] = useState<LibraryFilter>('watching');
   const en = useProfileStore((state) => state.language) === 'en';
+  const favorites = useProfileStore((state) => state.favorites);
   const allItems = useLibraryStore((state) => state.items);
-  const items = allItems.filter((item) => item.status === filter);
+  const items: LibraryItem[] = filter === 'favorites'
+    ? favorites.map((media) => allItems.find((item) => item.media.id === media.id && item.media.type === media.type) ?? { media, status: 'watchlist' })
+    : allItems.filter((item) => item.status === filter);
 
   return <Screen>
     <View style={styles.header}><Text style={styles.kicker}>{en ? 'PERSONAL ARCHIVE' : 'KİŞİSEL ARŞİV'}</Text><Text style={styles.title}>{en ? 'My library' : 'Listem'}</Text><Text style={styles.summary}>{allItems.length} {en ? 'titles · organized by status' : 'yapım · izleme durumuna göre düzenlendi'}</Text></View>
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
       {filters.map((item) => {
-        const count = allItems.filter((libraryItem) => libraryItem.status === item.value).length;
+        const count = item.value === 'favorites' ? favorites.length : allItems.filter((libraryItem) => libraryItem.status === item.value).length;
         return <Pressable key={item.value} style={[styles.filter, filter === item.value && styles.active]} onPress={() => setFilter(item.value)}><Text style={[styles.filterText, filter === item.value && styles.activeText]}>{en ? item.en : item.tr}</Text><View style={[styles.count, filter === item.value && styles.activeCount]}><Text style={[styles.countText, filter === item.value && styles.activeCountText]}>{count}</Text></View></Pressable>;
       })}
     </ScrollView>

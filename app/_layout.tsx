@@ -5,8 +5,21 @@ import * as Notifications from 'expo-notifications';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { colors } from '@/theme/tokens';
+import { shouldRetryExternalApiError } from '@/services/external-api-error';
 
-const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 5 * 60_000, retry: 2 } } });
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30 * 60_000,
+      gcTime: 24 * 60 * 60_000,
+      refetchOnMount: false,
+      refetchOnReconnect: true,
+      refetchOnWindowFocus: false,
+      retry: shouldRetryExternalApiError,
+      retryDelay: (attempt) => Math.min(1_000 * 2 ** attempt, 10_000),
+    },
+  },
+});
 Notifications.setNotificationHandler({ handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false }) });
 
 export default function RootLayout() {
