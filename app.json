@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "Episode",
+    "slug": "episode",
+    "scheme": "episode",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.episodeapp.mobile"
+    },
+    "android": {
+      "package": "com.episodeapp.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#07070A"
+      },
+      "permissions": [
+        "POST_NOTIFICATIONS"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-notifications",
+        {
+          "color": "#FF5A47",
+          "defaultChannel": "new-episodes"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "06b78221-b54d-415e-b09f-1b1a654393cf"
+      }
+    },
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "owner": "ulasdemir472"
+  }
+}

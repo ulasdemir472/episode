@@ -1,0 +1,27 @@
+name: Mobile release
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        type: choice
+        options: [all, android, ios]
+        default: all
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm validate
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: eas build --platform ${{ inputs.platform }} --profile production --non-interactive --no-wait

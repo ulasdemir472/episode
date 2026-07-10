@@ -1,0 +1,14 @@
+name: Preview builds
+on:
+  pull_request:
+    types: [opened, synchronize]
+jobs:
+  fingerprint:
+    type: get-build-fingerprint
+  android_build:
+    needs: [fingerprint]
+    type: build
+    params:
+      platform: android
+      profile: preview
+
