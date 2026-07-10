@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Screen } from '@/components/Screen';
 import { catalogService } from '@/services/tmdb';
-import { enableNotifications } from '@/services/notifications';
+import { enableNotifications, scheduleEpisodeReminder } from '@/services/notifications';
 import { useLibraryStore } from '@/store/library-store';
 import { colors, radius, spacing } from '@/theme/tokens';
 
@@ -33,11 +33,11 @@ export default function ReleasesScreen() {
   const renderRelease = (release: (typeof visible)[number], isUpcoming: boolean) => <Pressable key={release.id} onPress={() => router.push({ pathname: '/media/[id]', params: { id: String(release.show.id), data: JSON.stringify(release.show) } })} style={styles.item}>
     <Image source={{ uri: release.show.posterUrl }} style={styles.poster} />
     <View style={styles.info}><Text style={styles.show}>{release.show.title}</Text><Text style={styles.episode}>S{release.season} · B{release.episode}  “{release.title}”</Text><Text style={[styles.time, isUpcoming && styles.upcoming]}>{dateLabel(release.airDate)} {isUpcoming ? 'yayınlanacak' : 'yayınlandı'}</Text></View>
-    {!isUpcoming && <Pressable accessibilityLabel="İzlendi işaretle" onPress={(event) => { event.stopPropagation(); toggleEpisode(release.show, release.season, release.episode, 0); }} style={styles.check}><Ionicons name="checkmark" size={20} color={colors.muted} /></Pressable>}
+    {!isUpcoming && <Pressable accessibilityLabel="İzlendi işaretle" onPress={(event) => { event.stopPropagation(); toggleEpisode(release.show, release.season, release.episode, []); }} style={styles.check}><Ionicons name="checkmark" size={20} color={colors.muted} /></Pressable>}
   </Pressable>;
 
   return <Screen>
-    <View style={styles.header}><Text style={styles.kicker}>TAKVİMİN</Text><Text style={styles.title}>Yeni bölümler</Text><Text style={styles.subtitle}>İzlediğin dizilerin gerçek yayın takvimi.</Text><Pressable style={styles.notify} onPress={() => enableNotifications()}><Ionicons name="notifications-outline" size={18} color={colors.text} /><Text style={styles.notifyText}>Bildirimleri aç</Text></Pressable></View>
+    <View style={styles.header}><Text style={styles.kicker}>TAKVİMİN</Text><Text style={styles.title}>Yeni bölümler</Text><Text style={styles.subtitle}>İzlediğin dizilerin gerçek yayın takvimi.</Text><Pressable style={styles.notify} onPress={async () => { const enabled = await enableNotifications(); if (enabled) await Promise.all(upcoming.map((release) => { const planned = new Date(`${release.airDate}T12:00:00`); const reminder = planned.getTime() > Date.now() ? planned : new Date(Date.now() + 60_000); return scheduleEpisodeReminder(`${release.show.title} yayında`, `S${release.season} · B${release.episode} “${release.title}”`, reminder); })); Alert.alert(enabled ? 'Bildirimler hazır' : 'Bildirim izni gerekli', enabled ? `3 saniye içinde test bildirimi gelecek. ${upcoming.length} yaklaşan bölüm için de hatırlatıcı kuruldu.` : 'Ayarlar’dan Episode için bildirim iznini açmalısın.'); }}><Ionicons name="notifications-outline" size={18} color={colors.text} /><Text style={styles.notifyText}>Bildirimleri test et</Text></Pressable></View>
     {followedShows.length === 0 ? <View style={styles.emptyBox}><Ionicons name="calendar-outline" size={34} color={colors.muted} /><Text style={styles.emptyTitle}>Takip edilen dizi yok</Text><Text style={styles.empty}>Bir dizinin bölümünü izledin olarak işaretlediğinde yayın takvimi burada görünür.</Text></View> : schedule.isLoading ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : schedule.isError ? <View style={styles.emptyBox}><Text style={styles.error}>Yayın takvimi alınamadı.</Text><Pressable onPress={() => schedule.refetch()}><Text style={styles.retry}>Tekrar dene</Text></Pressable></View> : visible.length === 0 ? <View style={styles.emptyBox}><Ionicons name="checkmark-circle-outline" size={36} color={colors.success} /><Text style={styles.emptyTitle}>Her şey güncel</Text><Text style={styles.empty}>Son 30 günde kaçırdığın veya planlanmış yeni bir bölüm yok.</Text></View> : <>
       {aired.length > 0 && <><View style={styles.dateRow}><Text style={styles.date}>İZLENECEKLER</Text><View style={styles.line} /></View>{aired.map((release) => renderRelease(release, false))}</>}
       {upcoming.length > 0 && <><View style={styles.dateRow}><Text style={styles.date}>YAKINDA</Text><View style={styles.line} /></View>{upcoming.map((release) => renderRelease(release, true))}</>}

@@ -70,7 +70,7 @@ export default function MediaDetailScreen() {
   const handleEpisodePress = (episodeSeason: number, episodeNumber: number) => {
     const key = `${media.id}:${episodeSeason}:${episodeNumber}`;
     if (watchedEpisodes[key]) {
-      toggleEpisode(media, episodeSeason, episodeNumber, totalEpisodes);
+      toggleEpisode(media, episodeSeason, episodeNumber, seasons);
       return;
     }
     let missingBefore = 0;
@@ -82,12 +82,12 @@ export default function MediaDetailScreen() {
       }
     }
     if (missingBefore === 0) {
-      toggleEpisode(media, episodeSeason, episodeNumber, totalEpisodes);
+      toggleEpisode(media, episodeSeason, episodeNumber, seasons);
       return;
     }
     Alert.alert('Önceki bölümler izlenmemiş', `Bu bölümden önce izlenmemiş ${missingBefore} bölüm var. Buraya kadar hepsini izlendi olarak işaretleyelim mi?`, [
       { text: 'İptal', style: 'cancel' },
-      { text: 'Sadece bu bölüm', onPress: () => toggleEpisode(media, episodeSeason, episodeNumber, totalEpisodes) },
+      { text: 'Sadece bu bölüm', onPress: () => toggleEpisode(media, episodeSeason, episodeNumber, seasons) },
       { text: 'Buraya kadar hepsi', onPress: () => markThrough(media, episodeSeason, episodeNumber, seasons) },
     ]);
   };
@@ -108,7 +108,7 @@ export default function MediaDetailScreen() {
       <Text style={styles.overview}>{media.overview}</Text>
       <Pressable style={[styles.action, saved && styles.saved]} onPress={toggleSaved}><Ionicons name={saved ? 'checkmark' : 'add'} size={21} color="#fff" /><Text style={styles.actionText}>{saved ? 'Listemde' : 'Listeme ekle'}</Text></Pressable>
       <Pressable disabled={media.type === 'tv' && seasons.length === 0} style={[styles.watchedAction, currentStatus === 'completed' && styles.watchedActive, media.type === 'tv' && seasons.length === 0 && styles.disabled]} onPress={markTitleWatched}><Ionicons name={currentStatus === 'completed' ? 'checkmark-circle' : 'checkmark-circle-outline'} size={21} color={currentStatus === 'completed' ? '#fff' : colors.text} /><Text style={styles.watchedText}>{currentStatus === 'completed' ? 'İzlendi' : media.type === 'movie' ? 'İzledim' : 'Tümünü izledim'}</Text></Pressable>
-      {media.type === 'tv' && saved && <Pressable style={styles.dropAction} onPress={() => upsert(media, currentStatus === 'dropped' ? 'watching' : 'dropped')}><Ionicons name={currentStatus === 'dropped' ? 'play-outline' : 'stop-circle-outline'} size={18} color={currentStatus === 'dropped' ? colors.success : colors.muted} /><Text style={[styles.dropText, currentStatus === 'dropped' && styles.resumeText]}>{currentStatus === 'dropped' ? 'İzlemeye devam et' : 'İzlemeyi bıraktım'}</Text></Pressable>}
+      {media.type === 'tv' && saved && currentStatus !== 'completed' && <Pressable style={styles.dropAction} onPress={() => upsert(media, currentStatus === 'dropped' ? 'watching' : 'dropped')}><Ionicons name={currentStatus === 'dropped' ? 'play-outline' : 'stop-circle-outline'} size={18} color={currentStatus === 'dropped' ? colors.success : colors.muted} /><Text style={[styles.dropText, currentStatus === 'dropped' && styles.resumeText]}>{currentStatus === 'dropped' ? 'İzlemeye devam et' : 'İzlemeyi bıraktım'}</Text></Pressable>}
 
       {media.type === 'tv' && <>
         <View style={styles.rule} />

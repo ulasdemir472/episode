@@ -9,7 +9,7 @@ type LibraryState = {
   upsert: (media: Media, status: LibraryStatus) => void;
   remove: (mediaId: number) => void;
   isSaved: (mediaId: number) => boolean;
-  toggleEpisode: (media: Media, season: number, episode: number, totalEpisodes: number) => void;
+  toggleEpisode: (media: Media, season: number, episode: number, seasons: SeasonSummary[]) => void;
   markThrough: (media: Media, season: number, episode: number, seasons: SeasonSummary[]) => void;
   isEpisodeWatched: (mediaId: number, season: number, episode: number) => boolean;
 };
@@ -17,8 +17,15 @@ type LibraryState = {
 const episodeKey = (mediaId: number, season: number, episode: number) => `${mediaId}:${season}:${episode}`;
 const watchedCount = (episodes: Record<string, true>, mediaId: number) => Object.keys(episodes).filter((key) => key.startsWith(`${mediaId}:`)).length;
 
-function updateLibraryItem(items: LibraryItem[], media: Media, status: LibraryStatus, watched: number, total: number): LibraryItem[] {
-  const progress = total > 0 ? { watched, total } : undefined;
+function findNextEpisode(episodes: Record<string, true>, mediaId: number, seasons: SeasonSummary[]) {
+  for (const season of seasons) for (let episode = 1; episode <= season.episodeCount; episode += 1) {
+    if (!episodes[episodeKey(mediaId, season.number, episode)]) return { season: season.number, episode };
+  }
+  return undefined;
+}
+
+function updateLibraryItem(items: LibraryItem[], media: Media, status: LibraryStatus, watched: number, total: number, nextEpisode?: { season: number; episode: number }): LibraryItem[] {
+  const progress = total > 0 ? { watched, total, nextEpisode } : undefined;
   return [...items.filter((item) => item.media.id !== media.id), { media, status, progress }];
 }
 
@@ -31,14 +38,16 @@ export const useLibraryStore = create<LibraryState>()(persist((set, get) => ({
   }),
   remove: (mediaId) => set((state) => ({ items: state.items.filter((item) => item.media.id !== mediaId) })),
   isSaved: (mediaId) => get().items.some((item) => item.media.id === mediaId),
-  toggleEpisode: (media, season, episode, totalEpisodes) => set((state) => {
+  toggleEpisode: (media, season, episode, seasons) => set((state) => {
     const key = episodeKey(media.id, season, episode);
     const watchedEpisodes = { ...state.watchedEpisodes };
     if (watchedEpisodes[key]) delete watchedEpisodes[key]; else watchedEpisodes[key] = true;
     const count = watchedCount(watchedEpisodes, media.id);
-    const knownTotal = totalEpisodes || state.items.find((item) => item.media.id === media.id)?.progress?.total || 0;
+    const currentProgress = state.items.find((item) => item.media.id === media.id)?.progress;
+    const knownTotal = seasons.reduce((sum, item) => sum + item.episodeCount, 0) || currentProgress?.total || 0;
     const status: LibraryStatus = knownTotal > 0 && count >= knownTotal ? 'completed' : 'watching';
-    return { watchedEpisodes, items: updateLibraryItem(state.items, media, status, count, knownTotal) };
+    const nextEpisode = status === 'completed' ? undefined : seasons.length > 0 ? findNextEpisode(watchedEpisodes, media.id, seasons) : currentProgress?.nextEpisode;
+    return { watchedEpisodes, items: updateLibraryItem(state.items, media, status, count, knownTotal, nextEpisode) };
   }),
   markThrough: (media, season, episode, seasons) => set((state) => {
     const watchedEpisodes = { ...state.watchedEpisodes };
@@ -50,7 +59,8 @@ export const useLibraryStore = create<LibraryState>()(persist((set, get) => ({
     const total = seasons.reduce((sum, item) => sum + item.episodeCount, 0);
     const count = watchedCount(watchedEpisodes, media.id);
     const status: LibraryStatus = total > 0 && count >= total ? 'completed' : 'watching';
-    return { watchedEpisodes, items: updateLibraryItem(state.items, media, status, count, total) };
+    const nextEpisode = status === 'completed' ? undefined : findNextEpisode(watchedEpisodes, media.id, seasons);
+    return { watchedEpisodes, items: updateLibraryItem(state.items, media, status, count, total, nextEpisode) };
   }),
   isEpisodeWatched: (mediaId, season, episode) => Boolean(get().watchedEpisodes[episodeKey(mediaId, season, episode)]),
 }), {
