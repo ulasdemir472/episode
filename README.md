@@ -69,6 +69,7 @@ npx eas-cli@latest update --channel preview --environment preview --message "Add
 Veritabani migration uygulanmadan uygulama acilir, ancak giris sonrasi liste/profil/yorum senkronizasyonu sunucuya yazamaz.
 
 Arkadaslik ozelligi icin ayrica `supabase/migrations/202607110002_friendships.sql` dosyasini SQL Editor'de calistir.
+Telefondan profil fotografi secme ve yukleme icin `supabase/migrations/202607110003_avatar_storage.sql` dosyasini da calistir. Bu ozellik `expo-image-picker` kullandigi icin mevcut preview build'e EAS Update yetmez; yeni `eas build --platform ios --profile preview` gerekir.
 
 ## Test kullanicilarina dagitim
 

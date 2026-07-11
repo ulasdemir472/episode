@@ -30,6 +30,12 @@
     "plugins": [
       "expo-router",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Episode profil fotoğrafı seçebilmen için fotoğraf arşivine erişim ister."
+        }
+      ],
+      [
         "expo-notifications",
         {
           "color": "#FF5A47",
