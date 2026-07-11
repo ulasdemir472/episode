@@ -57,9 +57,10 @@ EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=publishable_key
 ```
 
 3. Dashboard'da `SQL Editor -> New query` ac, `supabase/migrations/202607110001_initial_schema.sql` dosyasini calistir. Bu tablo, RLS policy, yorum/puan kisiti ve realtime ayarlarini kurar.
-4. `Authentication -> URL Configuration` altinda Allowed Redirect URLs listesine `episode://auth` ve `episode://*` ekle.
-   Confirm maili localhost'a gidiyorsa ayni ekranda `Site URL` degerini de production web sitene ya da gecici olarak `episode://auth` degerine cek.
-5. Preview build yukluyse JS-only degisiklikler icin EAS Update yeterlidir:
+4. `Authentication -> URL Configuration` altinda `Site URL` degerini `http://localhost:3000` yerine production web sitene ya da gecici olarak `episode://auth` degerine cek.
+5. Ayni ekranda Allowed Redirect URLs listesine `episode://auth` ve `episode://**` ekle.
+6. Confirm maili hala localhost'a gidiyorsa `Authentication -> Email Templates -> Confirm signup` icinde link `{{ .SiteURL }}` kullaniyordur; template'i `{{ .RedirectTo }}` ya da Supabase'in varsayilan `{{ .ConfirmationURL }}` formatina geri al.
+7. Preview build yukluyse JS-only degisiklikler icin EAS Update yeterlidir:
 
 ```bash
 npx eas-cli@latest update --channel preview --environment preview --message "Add Supabase auth and sync"

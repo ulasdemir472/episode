@@ -1,5 +1,5 @@
 import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Session, User } from '@supabase/supabase-js';
+import { EmailOtpType, Session, User } from '@supabase/supabase-js';
 import * as Linking from 'expo-linking';
 import { isSupabaseConfigured, supabase } from '@/infrastructure/supabase/client';
 import { hydrateAndSyncUser, persistCurrentUserState } from '@/features/sync/user-sync-service';
@@ -8,6 +8,13 @@ import { useProfileStore } from '@/store/profile-store';
 import { useCommunityStore } from '@/store/community-store';
 
 type AuthResult = { error?: string; needsEmailConfirmation?: boolean };
+
+const authRedirectUrl = 'episode://auth';
+const emailOtpTypes = new Set(['signup', 'email', 'magiclink', 'recovery', 'invite', 'email_change']);
+
+function readAuthParam(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
 
 type AuthContextValue = {
   session: Session | null;
@@ -68,8 +75,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const exchangeAuthCode = async (url: string | null) => {
       if (!url) return;
       const parsed = Linking.parse(url);
-      const code = typeof parsed.queryParams?.code === 'string' ? parsed.queryParams.code : undefined;
+      const code = readAuthParam(parsed.queryParams?.code);
       if (code) await client.auth.exchangeCodeForSession(code).catch(() => undefined);
+      const tokenHash = readAuthParam(parsed.queryParams?.token_hash);
+      const type = readAuthParam(parsed.queryParams?.type);
+      if (tokenHash && type && emailOtpTypes.has(type)) {
+        await client.auth.verifyOtp({ token_hash: tokenHash, type: type as EmailOtpType }).catch(() => undefined);
+      }
     };
     Linking.getInitialURL().then(exchangeAuthCode).catch(() => undefined);
     const subscription = Linking.addEventListener('url', ({ url }) => {
@@ -128,7 +140,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
-        options: { emailRedirectTo: Linking.createURL('/auth') },
+        options: { emailRedirectTo: authRedirectUrl },
       });
       return error ? { error: error.message } : { needsEmailConfirmation: !data.session };
     },
