@@ -1,0 +1,41 @@
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0;padding:0;background:#07070A;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#F7F4F1;">
+  <tr>
+    <td align="center" style="padding:40px 18px;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px;background:#111116;border:1px solid rgba(255,255,255,.10);border-radius:24px;overflow:hidden;">
+        <tr>
+          <td style="padding:34px 30px 18px;text-align:center;">
+            <div style="display:inline-block;padding:10px 16px;border-radius:999px;background:rgba(255,90,71,.12);border:1px solid rgba(255,90,71,.24);">
+              <span style="font-size:28px;line-height:1;font-weight:900;letter-spacing:-1px;color:#F7F4F1;">episode<span style="color:#FF5A47;">.</span></span>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:0 30px 8px;text-align:center;">
+            <h1 style="margin:0;font-size:30px;line-height:1.15;font-weight:900;letter-spacing:-.5px;color:#F7F4F1;">Episode hesabini dogrula</h1>
+            <p style="margin:14px auto 0;max-width:390px;font-size:15px;line-height:1.6;color:#A8A3AD;">
+              Izleme listeni, favorilerini, yorumlarini ve puanlarini cihazlar arasinda senkronize etmek icin e-postani onayla.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="padding:28px 30px 14px;">
+            <a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email" style="display:inline-block;background:#FF5A47;color:#FFFFFF;text-decoration:none;font-size:15px;font-weight:900;padding:15px 24px;border-radius:999px;">
+              Hesabimi dogrula
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:10px 30px 30px;text-align:center;">
+            <p style="margin:0;font-size:12px;line-height:1.6;color:#6F6876;">
+              Buton calismazsa bu baglantiyi tarayicina yapistir:
+            </p>
+            <p style="margin:8px 0 0;font-size:11px;line-height:1.6;color:#8D8794;word-break:break-all;">
+              {{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email
+            </p>
+          </td>
+        </tr>
+      </table>
+      <p style="margin:18px 0 0;font-size:11px;color:#6F6876;">Bu e-postayi Episode hesabini olusturdugun icin aldın.</p>
+    </td>
+  </tr>
+</table>
