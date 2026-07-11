@@ -46,6 +46,26 @@ EXPO_PUBLIC_OMDB_API_KEY=anahtarin
 
 Anahtarları ekledikten sonra Metro'yu `pnpm start --clear` ile yeniden başlat. EAS preview build içinde kullanmak için aynı değişkenleri Expo dashboard'unda `Project → Environment variables → preview` alanına ekle ve yeni build oluştur. OMDb anahtarı yoksa dizi ve bölüm ekranlarında TMDB puanları gösterilmeye devam eder.
 
+### Supabase auth ve veritabani
+
+1. Supabase dashboard'da `Project Settings -> API` alanindan Project URL ve Publishable key degerlerini al.
+2. `.env` ve EAS `preview` environment icine su degiskenleri ekle:
+
+```env
+EXPO_PUBLIC_SUPABASE_URL=https://project-ref.supabase.co
+EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=publishable_key
+```
+
+3. Dashboard'da `SQL Editor -> New query` ac, `supabase/migrations/202607110001_initial_schema.sql` dosyasini calistir. Bu tablo, RLS policy, yorum/puan kisiti ve realtime ayarlarini kurar.
+4. `Authentication -> URL Configuration` altinda Allowed Redirect URLs listesine `episode://auth` ve `episode://*` ekle.
+5. Preview build yukluyse JS-only degisiklikler icin EAS Update yeterlidir:
+
+```bash
+npx eas-cli@latest update --channel preview --environment preview --message "Add Supabase auth and sync"
+```
+
+Veritabani migration uygulanmadan uygulama acilir, ancak giris sonrasi liste/profil/yorum senkronizasyonu sunucuya yazamaz.
+
 ## Kontroller
 
 ```bash

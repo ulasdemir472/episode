@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, Image, ImageBackground, Pressable, ScrollView
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import type { Href } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useQuery } from '@tanstack/react-query';
 import { Screen } from '@/components/Screen';
@@ -13,6 +14,7 @@ import { useLibraryStore } from '@/store/library-store';
 import { useProfileStore } from '@/store/profile-store';
 import { colors, radius, spacing } from '@/theme/tokens';
 import { MotionPressable } from '@/components/MotionPressable';
+import { useAuth } from '@/features/auth/AuthProvider';
 
 function parseMedia(data?: string): Media | undefined {
   if (!data) return undefined;
@@ -37,6 +39,7 @@ function parseMedia(data?: string): Media | undefined {
 
 export default function MediaDetailScreen() {
   const params = useLocalSearchParams<{ data?: string }>();
+  const auth = useAuth();
   const media = useMemo(() => parseMedia(params.data), [params.data]);
   const [season, setSeason] = useState<number>();
   const [socialEpisode, setSocialEpisode] = useState<EpisodeDetails>();
@@ -76,11 +79,18 @@ export default function MediaDetailScreen() {
   });
 
   if (!media) return null;
+  const requireUser = () => {
+    if (auth.user) return true;
+    router.push('/auth' as Href);
+    return false;
+  };
   const toggleSaved = () => {
+    if (!requireUser()) return;
     Haptics.selectionAsync();
     if (saved) remove(media.id); else upsert(media, 'watchlist');
   };
   const markTitleWatched = () => {
+    if (!requireUser()) return;
     Haptics.selectionAsync();
     if (media.type === 'movie') {
       upsert(media, currentStatus === 'completed' ? 'watchlist' : 'completed');
@@ -97,6 +107,7 @@ export default function MediaDetailScreen() {
   const seasons = seriesQuery.data?.seasons ?? [];
   const totalEpisodes = seasons.reduce((sum, item) => sum + item.episodeCount, 0);
   const handleEpisodePress = (episodeSeason: number, episodeNumber: number) => {
+    if (!requireUser()) return;
     const key = `${media.id}:${episodeSeason}:${episodeNumber}`;
     if (watchedEpisodes[key]) {
       toggleEpisode(media, episodeSeason, episodeNumber, seasons);
@@ -125,7 +136,7 @@ export default function MediaDetailScreen() {
     <ImageBackground source={{ uri: media.backdropUrl }} style={styles.hero}>
       <LinearGradient colors={['rgba(7,7,10,.1)', colors.background]} style={StyleSheet.absoluteFill} />
       <Pressable accessibilityLabel="Geri" onPress={() => router.back()} style={styles.back}><Ionicons name="chevron-back" color="#fff" size={24} /></Pressable>
-      <Pressable accessibilityLabel={favorite ? 'Favorilerden çıkar' : 'Favorilere ekle'} onPress={() => { Haptics.selectionAsync(); toggleFavorite(media); }} style={styles.favorite}><Ionicons name={favorite ? 'heart' : 'heart-outline'} color={favorite ? colors.primary : '#fff'} size={23} /></Pressable>
+      <Pressable accessibilityLabel={favorite ? 'Favorilerden çıkar' : 'Favorilere ekle'} onPress={() => { if (!requireUser()) return; Haptics.selectionAsync(); toggleFavorite(media); }} style={styles.favorite}><Ionicons name={favorite ? 'heart' : 'heart-outline'} color={favorite ? colors.primary : '#fff'} size={23} /></Pressable>
     </ImageBackground>
     <View style={styles.body}>
       <Text style={styles.type}>{media.type === 'tv' ? 'DİZİ' : 'FİLM'} · {media.year}</Text>
@@ -138,7 +149,7 @@ export default function MediaDetailScreen() {
       <Text style={styles.overview}>{media.overview}</Text>
       <MotionPressable style={[styles.action, saved && styles.saved]} onPress={toggleSaved}><Ionicons name={saved ? 'checkmark' : 'add'} size={21} color="#fff" /><Text style={styles.actionText}>{saved ? 'Listemde' : 'Listeme ekle'}</Text></MotionPressable>
       <MotionPressable disabled={media.type === 'tv' && seasons.length === 0} style={[styles.watchedAction, currentStatus === 'completed' && styles.watchedActive, media.type === 'tv' && seasons.length === 0 && styles.disabled]} onPress={markTitleWatched}><Ionicons name={currentStatus === 'completed' ? 'checkmark-circle' : 'checkmark-circle-outline'} size={21} color={currentStatus === 'completed' ? '#fff' : colors.text} /><Text style={styles.watchedText}>{currentStatus === 'completed' ? (media.type === 'movie' ? 'İzlendi · Geri al' : 'İzlendi') : media.type === 'movie' ? 'İzledim' : 'Tümünü izledim'}</Text></MotionPressable>
-      {media.type === 'tv' && saved && currentStatus !== 'completed' && <MotionPressable style={styles.dropAction} onPress={() => upsert(media, currentStatus === 'dropped' ? 'watching' : 'dropped')}><Ionicons name={currentStatus === 'dropped' ? 'play-outline' : 'stop-circle-outline'} size={18} color={currentStatus === 'dropped' ? colors.success : colors.muted} /><Text style={[styles.dropText, currentStatus === 'dropped' && styles.resumeText]}>{currentStatus === 'dropped' ? 'İzlemeye devam et' : 'İzlemeyi bıraktım'}</Text></MotionPressable>}
+      {media.type === 'tv' && saved && currentStatus !== 'completed' && <MotionPressable style={styles.dropAction} onPress={() => { if (requireUser()) upsert(media, currentStatus === 'dropped' ? 'watching' : 'dropped'); }}><Ionicons name={currentStatus === 'dropped' ? 'play-outline' : 'stop-circle-outline'} size={18} color={currentStatus === 'dropped' ? colors.success : colors.muted} /><Text style={[styles.dropText, currentStatus === 'dropped' && styles.resumeText]}>{currentStatus === 'dropped' ? 'İzlemeye devam et' : 'İzlemeyi bıraktım'}</Text></MotionPressable>}
 
       {media.type === 'tv' && <>
         <View style={styles.rule} />

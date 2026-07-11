@@ -1,0 +1,18 @@
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+
+export interface Database {
+  public: {
+    Tables: {
+      profiles: { Row: { id: string; first_name: string; last_name: string; username: string | null; language: 'tr' | 'en'; avatar_url: string | null; cover_url: string | null; created_at: string; updated_at: string }; Insert: { id: string; first_name?: string; last_name?: string; username?: string | null; language?: 'tr' | 'en'; avatar_url?: string | null; cover_url?: string | null }; Update: Partial<Database['public']['Tables']['profiles']['Insert']>; Relationships: [] };
+      library_items: { Row: { user_id: string; media_type: 'movie' | 'tv'; media_id: number; status: 'watching' | 'watchlist' | 'completed' | 'dropped'; media: Json; progress: Json | null; created_at: string; updated_at: string }; Insert: { user_id: string; media_type: 'movie' | 'tv'; media_id: number; status: 'watching' | 'watchlist' | 'completed' | 'dropped'; media: Json; progress?: Json | null }; Update: Partial<Database['public']['Tables']['library_items']['Insert']>; Relationships: [] };
+      episode_progress: { Row: { user_id: string; media_id: number; season_number: number; episode_number: number; watched: boolean; watched_at: string | null; updated_at: string }; Insert: { user_id: string; media_id: number; season_number: number; episode_number: number; watched?: boolean; watched_at?: string | null }; Update: Partial<Database['public']['Tables']['episode_progress']['Insert']>; Relationships: [] };
+      favorites: { Row: { user_id: string; media_type: 'movie' | 'tv'; media_id: number; media: Json; created_at: string }; Insert: { user_id: string; media_type: 'movie' | 'tv'; media_id: number; media: Json }; Update: Partial<Database['public']['Tables']['favorites']['Insert']>; Relationships: [] };
+      ratings: { Row: { id: string; user_id: string; target_key: string; target_type: 'media' | 'episode'; media_type: 'movie' | 'tv'; media_id: number; season_number: number | null; episode_number: number | null; score: number; created_at: string; updated_at: string }; Insert: { id?: string; user_id: string; target_key: string; target_type: 'media' | 'episode'; media_type: 'movie' | 'tv'; media_id: number; season_number?: number | null; episode_number?: number | null; score: number }; Update: Partial<Database['public']['Tables']['ratings']['Insert']>; Relationships: [] };
+      comments: { Row: { id: string; user_id: string; target_key: string; target_type: 'media' | 'episode'; media_type: 'movie' | 'tv'; media_id: number; season_number: number | null; episode_number: number | null; body: string; spoiler: boolean; moderation_status: 'visible' | 'hidden' | 'pending'; created_at: string; updated_at: string; deleted_at: string | null }; Insert: { id?: string; user_id: string; target_key: string; target_type: 'media' | 'episode'; media_type: 'movie' | 'tv'; media_id: number; season_number?: number | null; episode_number?: number | null; body: string; spoiler?: boolean }; Update: { body?: string; spoiler?: boolean; deleted_at?: string | null }; Relationships: [] };
+    };
+    Views: Record<string, never>;
+    Functions: { can_review_target: { Args: { requested_user: string; requested_target_type: string; requested_media_type: string; requested_media_id: number; requested_season: number | null; requested_episode: number | null }; Returns: boolean } };
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
+  };
+}

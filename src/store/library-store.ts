@@ -12,6 +12,8 @@ type LibraryState = {
   toggleEpisode: (media: Media, season: number, episode: number, seasons: SeasonSummary[]) => void;
   markThrough: (media: Media, season: number, episode: number, seasons: SeasonSummary[]) => void;
   isEpisodeWatched: (mediaId: number, season: number, episode: number) => boolean;
+  mergeRemote: (items: LibraryItem[], watchedEpisodes: Record<string, true>) => void;
+  clearUserData: () => void;
 };
 
 const episodeKey = (mediaId: number, season: number, episode: number) => `${mediaId}:${season}:${episode}`;
@@ -63,6 +65,11 @@ export const useLibraryStore = create<LibraryState>()(persist((set, get) => ({
     return { watchedEpisodes, items: updateLibraryItem(state.items, media, status, count, total, nextEpisode) };
   }),
   isEpisodeWatched: (mediaId, season, episode) => Boolean(get().watchedEpisodes[episodeKey(mediaId, season, episode)]),
+  mergeRemote: (remoteItems, remoteWatchedEpisodes) => set((state) => {
+    const mergedItems = [...remoteItems, ...state.items].filter((item, index, all) => all.findIndex((candidate) => candidate.media.id === item.media.id && candidate.media.type === item.media.type) === index);
+    return { items: mergedItems, watchedEpisodes: { ...remoteWatchedEpisodes, ...state.watchedEpisodes } };
+  }),
+  clearUserData: () => set({ items: [], watchedEpisodes: {} }),
 }), {
   name: 'episode-library-v1',
   version: 3,

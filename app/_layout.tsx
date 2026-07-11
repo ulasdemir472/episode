@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { colors } from '@/theme/tokens';
 import { shouldRetryExternalApiError } from '@/services/external-api-error';
+import { AuthProvider } from '@/features/auth/AuthProvider';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -24,5 +25,5 @@ Notifications.setNotificationHandler({ handleNotification: async () => ({ should
 
 export default function RootLayout() {
   useEffect(() => { Notifications.setBadgeCountAsync(0).catch(() => undefined); }, []);
-  return <SafeAreaProvider><QueryClientProvider client={queryClient}><StatusBar style="light" /><Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background }, animation: 'fade' }}><Stack.Screen name="(tabs)" /><Stack.Screen name="media/[id]" options={{ presentation: 'card', animation: 'slide_from_right' }} /></Stack></QueryClientProvider></SafeAreaProvider>;
+  return <SafeAreaProvider><QueryClientProvider client={queryClient}><AuthProvider><StatusBar style="light" /><Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background }, animation: 'fade' }}><Stack.Screen name="(tabs)" /><Stack.Screen name="media/[id]" options={{ presentation: 'card', animation: 'slide_from_right' }} /><Stack.Screen name="auth" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} /></Stack></AuthProvider></QueryClientProvider></SafeAreaProvider>;
 }

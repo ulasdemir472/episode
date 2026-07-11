@@ -2,5 +2,9 @@ declare namespace NodeJS {
   interface ProcessEnv {
     EXPO_PUBLIC_TMDB_ACCESS_TOKEN?: string;
     EXPO_PUBLIC_OMDB_API_KEY?: string;
+    EXPO_PUBLIC_SUPABASE_URL?: string;
+    EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY?: string;
+    NEXT_PUBLIC_SUPABASE_URL?: string;
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?: string;
   }
 }
