@@ -58,6 +58,7 @@ EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=publishable_key
 
 3. Dashboard'da `SQL Editor -> New query` ac, `supabase/migrations/202607110001_initial_schema.sql` dosyasini calistir. Bu tablo, RLS policy, yorum/puan kisiti ve realtime ayarlarini kurar.
 4. `Authentication -> URL Configuration` altinda Allowed Redirect URLs listesine `episode://auth` ve `episode://*` ekle.
+   Confirm maili localhost'a gidiyorsa ayni ekranda `Site URL` degerini de production web sitene ya da gecici olarak `episode://auth` degerine cek.
 5. Preview build yukluyse JS-only degisiklikler icin EAS Update yeterlidir:
 
 ```bash
@@ -65,6 +66,16 @@ npx eas-cli@latest update --channel preview --environment preview --message "Add
 ```
 
 Veritabani migration uygulanmadan uygulama acilir, ancak giris sonrasi liste/profil/yorum senkronizasyonu sunucuya yazamaz.
+
+Arkadaslik ozelligi icin ayrica `supabase/migrations/202607110002_friendships.sql` dosyasini SQL Editor'de calistir.
+
+## Test kullanicilarina dagitim
+
+1. `eas build --platform ios --profile preview` ile internal distribution build olustur.
+2. EAS'in verdigi QR/linki Apple Developer hesabinda kayitli cihazlara gonder.
+3. Daha genis iOS testi icin App Store Connect'te TestFlight kullan; yeni tester email'lerini ekleyip build'i External Testing'e ac.
+4. Kod tarafinda sadece JS degisiyorsa yeni build almak yerine `npx eas-cli@latest update --channel preview --environment preview --message "..."` yeterli.
+5. Tester'larin farkli hesaplarla kayit olmasini, kullanici adi belirlemesini, birbirini aratip arkadas istegi gondermesini ve kabul etmesini kontrol et.
 
 ## Kontroller
 

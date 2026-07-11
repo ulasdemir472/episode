@@ -33,7 +33,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const watchedEpisodes = useLibraryStore((state) => state.watchedEpisodes);
   const firstName = useProfileStore((state) => state.firstName);
   const lastName = useProfileStore((state) => state.lastName);
+  const username = useProfileStore((state) => state.username);
   const language = useProfileStore((state) => state.language);
+  const avatarUrl = useProfileStore((state) => state.avatarUrl);
   const coverUrl = useProfileStore((state) => state.coverUrl);
   const favorites = useProfileStore((state) => state.favorites);
 
@@ -107,7 +109,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       });
     }, 900);
     return () => clearTimeout(timeout);
-  }, [coverUrl, favorites, firstName, language, lastName, libraryItems, session?.user.id, syncStatus, watchedEpisodes]);
+  }, [avatarUrl, coverUrl, favorites, firstName, language, lastName, libraryItems, session?.user.id, syncStatus, username, watchedEpisodes]);
 
   const value = useMemo<AuthContextValue>(() => ({
     session,

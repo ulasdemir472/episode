@@ -25,10 +25,21 @@ function isLibraryItem(value: unknown): value is LibraryItem {
   return isMedia(item.media) && ['watching', 'watchlist', 'completed', 'dropped'].includes(item.status ?? '');
 }
 
+export function canPersistReviewTarget(targetKey: string, items: LibraryItem[], watchedEpisodes: Record<string, true>): boolean {
+  const target = parseReviewTarget(targetKey);
+  if (!target) return false;
+  if (target.targetType === 'episode') {
+    return Boolean(watchedEpisodes[`${target.mediaId}:${target.seasonNumber}:${target.episodeNumber}`]);
+  }
+  const item = items.find((libraryItem) => libraryItem.media.id === target.mediaId && libraryItem.media.type === target.mediaType);
+  if (target.mediaType === 'movie') return item?.status === 'completed';
+  return item?.status === 'completed' || Object.keys(watchedEpisodes).some((key) => key.startsWith(`${target.mediaId}:`));
+}
+
 export async function hydrateAndSyncUser(userId: string): Promise<void> {
   const client = requireSupabase();
   const [profileResult, libraryResult, progressResult, favoritesResult] = await Promise.all([
-    client.from('profiles').select('first_name,last_name,language,cover_url').eq('id', userId).maybeSingle(),
+    client.from('profiles').select('username,first_name,last_name,language,avatar_url,cover_url').eq('id', userId).maybeSingle(),
     client.from('library_items').select('media,status,progress').eq('user_id', userId),
     client.from('episode_progress').select('media_id,season_number,episode_number').eq('user_id', userId).eq('watched', true),
     client.from('favorites').select('media').eq('user_id', userId),
@@ -46,9 +57,11 @@ export async function hydrateAndSyncUser(userId: string): Promise<void> {
   const remoteFavorites: Media[] = (favoritesResult.data ?? []).flatMap((row) => isMedia(row.media) ? [row.media] : []);
   const remoteProfile = profileResult.data;
   useProfileStore.getState().mergeRemote({
+    username: remoteProfile?.username ?? '',
     firstName: remoteProfile?.first_name ?? '',
     lastName: remoteProfile?.last_name ?? '',
     language: remoteProfile?.language === 'en' ? 'en' : 'tr',
+    avatarUrl: remoteProfile?.avatar_url ?? undefined,
     coverUrl: remoteProfile?.cover_url ?? undefined,
     favorites: remoteFavorites,
   });
@@ -62,7 +75,15 @@ export async function persistCurrentUserState(userId: string): Promise<void> {
   const profile = useProfileStore.getState();
   const community = useCommunityStore.getState();
 
-  const profileResult = await client.from('profiles').upsert({ id: userId, first_name: profile.firstName, last_name: profile.lastName, language: profile.language, cover_url: profile.coverUrl ?? null });
+  const profileResult = await client.from('profiles').upsert({
+    id: userId,
+    username: profile.username || null,
+    first_name: profile.firstName,
+    last_name: profile.lastName,
+    language: profile.language,
+    avatar_url: profile.avatarUrl ?? null,
+    cover_url: profile.coverUrl ?? null,
+  });
   if (profileResult.error) throw profileResult.error;
 
   const libraryRows = library.items.map((item) => ({ user_id: userId, media_type: item.media.type, media_id: item.media.id, status: item.status, media: item.media as unknown as Json, progress: item.progress ? item.progress as unknown as Json : null }));
@@ -109,7 +130,7 @@ export async function persistCurrentUserState(userId: string): Promise<void> {
 
   const ratingRows = Object.entries(community.ratings).flatMap(([targetKey, score]) => {
     const target = parseReviewTarget(targetKey);
-    return target ? [{ user_id: userId, target_key: target.targetKey, target_type: target.targetType, media_type: target.mediaType, media_id: target.mediaId, season_number: target.seasonNumber, episode_number: target.episodeNumber, score }] : [];
+    return target && canPersistReviewTarget(targetKey, library.items, library.watchedEpisodes) ? [{ user_id: userId, target_key: target.targetKey, target_type: target.targetType, media_type: target.mediaType, media_id: target.mediaId, season_number: target.seasonNumber, episode_number: target.episodeNumber, score }] : [];
   });
   if (ratingRows.length > 0) {
     const result = await client.from('ratings').upsert(ratingRows, { onConflict: 'user_id,target_key' });
@@ -118,7 +139,7 @@ export async function persistCurrentUserState(userId: string): Promise<void> {
 
   const commentRows = community.comments.flatMap((comment) => {
     const target = parseReviewTarget(comment.targetKey);
-    return target ? [{ id: uuidPattern.test(comment.id) ? comment.id : createUuid(), user_id: userId, target_key: target.targetKey, target_type: target.targetType, media_type: target.mediaType, media_id: target.mediaId, season_number: target.seasonNumber, episode_number: target.episodeNumber, body: comment.text }] : [];
+    return target && canPersistReviewTarget(comment.targetKey, library.items, library.watchedEpisodes) ? [{ id: uuidPattern.test(comment.id) ? comment.id : createUuid(), user_id: userId, target_key: target.targetKey, target_type: target.targetType, media_type: target.mediaType, media_id: target.mediaId, season_number: target.seasonNumber, episode_number: target.episodeNumber, body: comment.text }] : [];
   });
   if (commentRows.length > 0) {
     const result = await client.from('comments').upsert(commentRows, { onConflict: 'id' });
