@@ -1,12 +1,14 @@
-import { useMemo, useState } from 'react';
-import { Modal, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { MotionPressable } from '@/components/MotionPressable';
+import { router } from 'expo-router';
+import type { Href } from 'expo-router';
 import { colors, radius, spacing } from '@/theme/tokens';
 import { useProfileStore } from '@/store/profile-store';
 
 type Step = {
   icon: keyof typeof Ionicons.glyphMap;
+  route: Href;
   title: string;
   body: string;
 };
@@ -16,22 +18,35 @@ export function OnboardingTutorial({ onFinish }: { onFinish: () => void }) {
   const [index, setIndex] = useState(0);
   const en = language === 'en';
   const steps = useMemo<Step[]>(() => en ? [
-    { icon: 'search-outline', title: 'Discover what to watch', body: 'Use Discover to search movies and shows, then open the detail page for seasons, episodes and ratings.' },
-    { icon: 'heart-outline', title: 'Build your taste', body: 'Tap the heart on detail pages to add favorites. Use list buttons to mark watching, watchlist or completed.' },
-    { icon: 'checkmark-done-outline', title: 'Track every episode', body: 'On show details, mark episodes as watched. If you jump ahead, Episode can mark previous episodes for you.' },
-    { icon: 'chatbubble-ellipses-outline', title: 'Rate and comment', body: 'After watching, add ratings and spoiler-free comments. Unwatched titles stay locked.' },
-    { icon: 'people-outline', title: 'Add friends', body: 'Go to Profile, set a username, upload a photo, then search friends by username and send requests.' },
+    { icon: 'search-outline', route: '/(tabs)/discover' as Href, title: 'Discover what to watch', body: 'This is Discover. Search movies and shows here, then open a detail page for seasons, episodes and ratings.' },
+    { icon: 'heart-outline', route: '/(tabs)/library' as Href, title: 'Build your lists', body: 'This is your Library. Titles you mark as watching, watchlist, completed or dropped are collected here.' },
+    { icon: 'calendar-outline', route: '/(tabs)/releases' as Href, title: 'Follow new episodes', body: 'Episodes shows upcoming and recently aired episodes from the shows you follow.' },
+    { icon: 'chatbubble-ellipses-outline', route: '/(tabs)/discover' as Href, title: 'Rate and comment after watching', body: 'Open a title from Discover or Library. After watching, you can rate and write spoiler-free comments.' },
+    { icon: 'people-outline', route: '/(tabs)/profile' as Href, title: 'Complete your profile', body: 'This is Profile. Set a username, upload a photo, search friends by username and send requests.' },
   ] : [
-    { icon: 'search-outline', title: 'Ne izleyecegini kesfet', body: 'Kesfet tabindan film ve dizi ara; detay ekraninda sezonlari, bolumleri ve puanlari gor.' },
-    { icon: 'heart-outline', title: 'Zevkini olustur', body: 'Detay ekraninda kalbe basarak favorilere ekle. Liste butonlariyla izliyorum, izleyecegim veya izledim olarak isaretle.' },
-    { icon: 'checkmark-done-outline', title: 'Bolumleri tek tek takip et', body: 'Dizi detayinda bolumleri izlendi isaretle. Ileri bir bolume atlarsan oncekileri topluca isaretleyebilirsin.' },
-    { icon: 'chatbubble-ellipses-outline', title: 'Puan ver ve yorum yap', body: 'Izledikten sonra puan ve yorumu ekle. Izlemedigin yapimlar yorum ve puana kapali kalir.' },
-    { icon: 'people-outline', title: 'Arkadas ekle', body: 'Profilde kullanici adi belirle, fotograf yukle, sonra arkadasini kullanici adiyla ara ve istek gonder.' },
+    { icon: 'search-outline', route: '/(tabs)/discover' as Href, title: 'Kesfet tabindan basla', body: 'Burasi Kesfet. Film ve dizi arayip detay sayfasinda sezonlari, bolumleri ve puanlari gorebilirsin.' },
+    { icon: 'heart-outline', route: '/(tabs)/library' as Href, title: 'Listeni burada yonet', body: 'Burasi Listem. Izliyorum, izleyecegim, izledim veya biraktim dedigin yapimlar burada toplanir.' },
+    { icon: 'calendar-outline', route: '/(tabs)/releases' as Href, title: 'Yeni bolumleri takip et', body: 'Bolumler tabinda takip ettigin dizilerin yeni ve yaklasan bolumlerini gorursun.' },
+    { icon: 'chatbubble-ellipses-outline', route: '/(tabs)/discover' as Href, title: 'Izledikten sonra puan ver', body: 'Kesfet veya Listem uzerinden detay sayfasina gir. Izledigin yapimlara puan ve spoiler vermeyen yorum ekleyebilirsin.' },
+    { icon: 'people-outline', route: '/(tabs)/profile' as Href, title: 'Profil ve arkadaslar', body: 'Burasi Profil. Kullanici adi belirle, fotograf yukle, sonra arkadasini kullanici adiyla ara ve istek gonder.' },
   ], [en]);
   const step = steps[index]!;
   const isLast = index === steps.length - 1;
+  const advance = () => {
+    if (isLast) {
+      onFinish();
+      return;
+    }
+    const nextIndex = index + 1;
+    setIndex(nextIndex);
+    router.replace(steps[nextIndex]!.route);
+  };
 
-  return <Modal visible transparent animationType="fade">
+  useEffect(() => {
+    router.replace(step.route);
+  }, [step.route]);
+
+  return <Modal visible transparent animationType="slide" onRequestClose={onFinish}>
     <View style={styles.backdrop}>
       <View style={styles.card}>
         <View style={styles.brand}><Text style={styles.logo}>episode<Text style={styles.dot}>.</Text></Text></View>
@@ -40,8 +55,8 @@ export function OnboardingTutorial({ onFinish }: { onFinish: () => void }) {
         <Text style={styles.body}>{step.body}</Text>
         <View style={styles.dots}>{steps.map((_, dotIndex) => <View key={dotIndex} style={[styles.dotItem, dotIndex === index && styles.dotActive]} />)}</View>
         <View style={styles.actions}>
-          <MotionPressable onPress={onFinish} style={styles.skip}><Text style={styles.skipText}>{en ? 'Skip' : 'Gec'}</Text></MotionPressable>
-          <MotionPressable onPress={() => isLast ? onFinish() : setIndex((current) => current + 1)} style={styles.next}><Text style={styles.nextText}>{isLast ? (en ? 'Start' : 'Basla') : (en ? 'Next' : 'Devam')}</Text></MotionPressable>
+          <Pressable onPress={onFinish} style={styles.skip}><Text style={styles.skipText}>{en ? 'Skip' : 'Gec'}</Text></Pressable>
+          <Pressable onPress={advance} style={styles.next}><Text style={styles.nextText}>{isLast ? (en ? 'Start' : 'Basla') : (en ? 'Next' : 'Devam')}</Text></Pressable>
         </View>
       </View>
     </View>
@@ -49,8 +64,8 @@ export function OnboardingTutorial({ onFinish }: { onFinish: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,.72)', alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
-  card: { width: '100%', borderRadius: 24, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: spacing.xl, alignItems: 'center' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,.32)', justifyContent: 'flex-end', padding: spacing.lg },
+  card: { width: '100%', borderRadius: 24, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: spacing.xl, alignItems: 'center', marginBottom: spacing.xl },
   brand: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: 'rgba(255,90,71,.12)', borderWidth: 1, borderColor: 'rgba(255,90,71,.24)' },
   logo: { color: colors.text, fontSize: 22, fontWeight: '900', letterSpacing: -1 },
   dot: { color: colors.primary },
