@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useCommunityStore } from '@/store/community-store';
@@ -7,7 +7,8 @@ import { colors, radius, spacing } from '@/theme/tokens';
 
 export function CommunityPanel({ targetKey, title }: { targetKey: string; title?: string }) {
   const [text, setText] = useState('');
-  const comments = useCommunityStore((state) => state.comments.filter((comment) => comment.targetKey === targetKey));
+  const allComments = useCommunityStore((state) => state.comments);
+  const comments = useMemo(() => allComments.filter((comment) => comment.targetKey === targetKey), [allComments, targetKey]);
   const rating = useCommunityStore((state) => state.ratings[targetKey]);
   const addComment = useCommunityStore((state) => state.addComment);
   const rate = useCommunityStore((state) => state.rate);

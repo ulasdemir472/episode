@@ -13,9 +13,30 @@ import { useLibraryStore } from '@/store/library-store';
 import { useProfileStore } from '@/store/profile-store';
 import { colors, radius, spacing } from '@/theme/tokens';
 
+function parseMedia(data?: string): Media | undefined {
+  if (!data) return undefined;
+  try {
+    const parsed = JSON.parse(data) as Partial<Media>;
+    if (typeof parsed.id !== 'number' || (parsed.type !== 'movie' && parsed.type !== 'tv') || typeof parsed.title !== 'string') return undefined;
+    return {
+      id: parsed.id,
+      type: parsed.type,
+      title: parsed.title,
+      overview: typeof parsed.overview === 'string' ? parsed.overview : '',
+      posterUrl: typeof parsed.posterUrl === 'string' ? parsed.posterUrl : '',
+      backdropUrl: typeof parsed.backdropUrl === 'string' ? parsed.backdropUrl : '',
+      year: typeof parsed.year === 'string' ? parsed.year : '',
+      rating: typeof parsed.rating === 'number' ? parsed.rating : 0,
+      genres: Array.isArray(parsed.genres) ? parsed.genres.filter((genre): genre is string => typeof genre === 'string') : [],
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 export default function MediaDetailScreen() {
   const params = useLocalSearchParams<{ data?: string }>();
-  const media = useMemo(() => params.data ? JSON.parse(params.data) as Media : undefined, [params.data]);
+  const media = useMemo(() => parseMedia(params.data), [params.data]);
   const [season, setSeason] = useState<number>();
   const [socialEpisode, setSocialEpisode] = useState<EpisodeDetails>();
   const items = useLibraryStore((state) => state.items);
