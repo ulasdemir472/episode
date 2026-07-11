@@ -164,9 +164,9 @@ export default function MediaDetailScreen() {
             {episodesQuery.data.map((episode) => <MotionPressable key={`discussion-${episode.id}`} onPress={() => setSocialEpisode(episode)} style={[styles.discussionChip, socialEpisode?.id === episode.id && styles.discussionChipActive]}><Ionicons name="chatbubble-outline" size={13} color={socialEpisode?.id === episode.id ? '#fff' : colors.muted} /><Text style={[styles.discussionChipText, socialEpisode?.id === episode.id && styles.discussionChipTextActive]}>B{episode.number}</Text></MotionPressable>)}
           </ScrollView>
         </View>}
-        {socialEpisode && <CommunityPanel targetKey={`episode:${media.id}:${socialEpisode.seasonNumber}:${socialEpisode.number}`} title={`S${socialEpisode.seasonNumber} B${socialEpisode.number} · Puanlar ve yorumlar`} canComment={Boolean(watchedEpisodes[`${media.id}:${socialEpisode.seasonNumber}:${socialEpisode.number}`])} />}
+        {socialEpisode && <CommunityPanel targetKey={`episode:${media.id}:${socialEpisode.seasonNumber}:${socialEpisode.number}`} title={`S${socialEpisode.seasonNumber} B${socialEpisode.number} · Puanlar ve yorumlar`} canReview={Boolean(watchedEpisodes[`${media.id}:${socialEpisode.seasonNumber}:${socialEpisode.number}`])} />}
       </>}
-      <CommunityPanel targetKey={`media:${media.type}:${media.id}`} canComment={media.type === 'movie' ? currentStatus === 'completed' : currentStatus === 'completed' || hasWatchedEpisode} />
+      <CommunityPanel targetKey={`media:${media.type}:${media.id}`} canReview={media.type === 'movie' ? currentStatus === 'completed' : currentStatus === 'completed' || hasWatchedEpisode} />
     </View>
   </Screen>;
 }
