@@ -15,6 +15,7 @@ import { useProfileStore } from '@/store/profile-store';
 import { colors, radius, spacing } from '@/theme/tokens';
 import { MotionPressable } from '@/components/MotionPressable';
 import { useAuth } from '@/features/auth/AuthProvider';
+import { ScrollFocusTarget } from '@/features/onboarding/ScrollFocusTarget';
 
 function parseMedia(data?: string): Media | undefined {
   if (!data) return undefined;
@@ -38,7 +39,7 @@ function parseMedia(data?: string): Media | undefined {
 }
 
 export default function MediaDetailScreen() {
-  const params = useLocalSearchParams<{ data?: string }>();
+  const params = useLocalSearchParams<{ data?: string; tutorialTarget?: string }>();
   const auth = useAuth();
   const media = useMemo(() => parseMedia(params.data), [params.data]);
   const [season, setSeason] = useState<number>();
@@ -177,7 +178,9 @@ export default function MediaDetailScreen() {
         </View>}
         {socialEpisode && <CommunityPanel targetKey={`episode:${media.id}:${socialEpisode.seasonNumber}:${socialEpisode.number}`} title={`S${socialEpisode.seasonNumber} B${socialEpisode.number} · Puanlar ve yorumlar`} canReview={Boolean(watchedEpisodes[`${media.id}:${socialEpisode.seasonNumber}:${socialEpisode.number}`])} />}
       </>}
-      <CommunityPanel targetKey={`media:${media.type}:${media.id}`} canReview={media.type === 'movie' ? currentStatus === 'completed' : currentStatus === 'completed' || hasWatchedEpisode} />
+      <ScrollFocusTarget active={params.tutorialTarget === 'comments'}>
+        <CommunityPanel targetKey={`media:${media.type}:${media.id}`} canReview={media.type === 'movie' ? currentStatus === 'completed' : currentStatus === 'completed' || hasWatchedEpisode} />
+      </ScrollFocusTarget>
     </View>
   </Screen>;
 }

@@ -4,7 +4,7 @@ import { Alert, Image, ImageBackground, Pressable, ScrollView, StyleSheet, Text,
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import type { Href } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Screen } from '@/components/Screen';
@@ -13,6 +13,7 @@ import { MotionPressable } from '@/components/MotionPressable';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { fetchFriendships, Friendship, removeFriendship, respondFriendRequest, searchProfiles, sendFriendRequest } from '@/features/friends/friends-repository';
 import { uploadAvatar } from '@/features/profile/avatar-service';
+import { ScrollFocusTarget } from '@/features/onboarding/ScrollFocusTarget';
 import { useLibraryStore } from '@/store/library-store';
 import { useProfileStore } from '@/store/profile-store';
 import { colors, radius, spacing } from '@/theme/tokens';
@@ -20,6 +21,7 @@ import { colors, radius, spacing } from '@/theme/tokens';
 export default function ProfileScreen() {
   const profile = useProfileStore();
   const auth = useAuth();
+  const params = useLocalSearchParams<{ tutorialTarget?: string }>();
   const library = useLibraryStore((state) => state.items);
   const [firstName, setFirstName] = useState(profile.firstName);
   const [lastName, setLastName] = useState(profile.lastName);
@@ -104,7 +106,9 @@ export default function ProfileScreen() {
       <View style={styles.language}><Pressable style={[styles.languageOption, profile.language === 'tr' && styles.languageActive]} onPress={() => profile.setLanguage('tr')}><Text style={[styles.languageText, profile.language === 'tr' && styles.languageTextActive]}>Turkce</Text></Pressable><Pressable style={[styles.languageOption, profile.language === 'en' && styles.languageActive]} onPress={() => profile.setLanguage('en')}><Text style={[styles.languageText, profile.language === 'en' && styles.languageTextActive]}>English</Text></Pressable></View>
     </View>
 
-    <FriendsPanel userId={auth.user?.id} isEnglish={isEnglish} />
+    <ScrollFocusTarget active={params.tutorialTarget === 'friends'}>
+      <FriendsPanel userId={auth.user?.id} isEnglish={isEnglish} />
+    </ScrollFocusTarget>
 
     <View style={styles.sectionHeader}><Text style={styles.heading}>{isEnglish ? 'Profile cover' : 'Profil kapagi'}</Text><Text style={styles.caption}>{isEnglish ? 'Choose from your titles' : 'Yapimlarindan sec'}</Text></View>
     {availableMedia.length > 0 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.coverChoices}>{availableMedia.map((media) => <Pressable key={`cover-${media.type}-${media.id}`} onPress={() => profile.setCover(media.backdropUrl || media.posterUrl)} style={[styles.coverChoice, profile.coverUrl === (media.backdropUrl || media.posterUrl) && styles.coverSelected]}><Image source={{ uri: media.backdropUrl || media.posterUrl }} style={styles.coverImage} /><Text numberOfLines={1} style={styles.coverTitle}>{media.title}</Text></Pressable>)}</ScrollView> : <Text style={styles.empty}>{isEnglish ? 'Add favorites or library titles to choose a cover.' : 'Kapak secmek icin favori veya listene yapim ekle.'}</Text>}
