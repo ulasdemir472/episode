@@ -14,11 +14,13 @@ type ProfileState = {
   avatarUrl?: string;
   coverUrl?: string;
   favorites: Media[];
+  hasSeenTutorial: boolean;
   setProfileDetails: (details: { firstName: string; lastName: string; username: string; avatarUrl?: string }) => void;
   setName: (firstName: string, lastName: string) => void;
   setAvatar: (avatarUrl?: string) => void;
   setLanguage: (language: AppLanguage) => void;
   setCover: (coverUrl: string) => void;
+  completeTutorial: () => void;
   toggleFavorite: (media: Media) => void;
   isFavorite: (mediaId: number) => boolean;
   mergeRemote: (profile: { username: string; firstName: string; lastName: string; language: AppLanguage; avatarUrl?: string; coverUrl?: string; favorites: Media[] }) => void;
@@ -30,12 +32,13 @@ const createLocalProfileId = () => `local-${Date.now()}-${Math.random().toString
 const normalizeUsername = (username: string) => username.trim().toLowerCase().replace(/[^a-z0-9._]/g, '').slice(0, 24);
 
 export const useProfileStore = create<ProfileState>()(persist((set, get) => ({
-  id: createLocalProfileId(), username: '', firstName: '', lastName: '', language: 'tr', avatarUrl: undefined, coverUrl: undefined, favorites: [],
+  id: createLocalProfileId(), username: '', firstName: '', lastName: '', language: 'tr', avatarUrl: undefined, coverUrl: undefined, favorites: [], hasSeenTutorial: false,
   setProfileDetails: ({ firstName, lastName, username, avatarUrl }) => set({ firstName: firstName.trim(), lastName: lastName.trim(), username: normalizeUsername(username), avatarUrl: avatarUrl?.trim() || undefined }),
   setName: (firstName, lastName) => set({ firstName: firstName.trim(), lastName: lastName.trim() }),
   setAvatar: (avatarUrl) => set({ avatarUrl: avatarUrl?.trim() || undefined }),
   setLanguage: (language) => set({ language }),
   setCover: (coverUrl) => set({ coverUrl }),
+  completeTutorial: () => set({ hasSeenTutorial: true }),
   toggleFavorite: (media) => set((state) => ({ favorites: state.favorites.some((item) => item.id === media.id) ? state.favorites.filter((item) => item.id !== media.id) : [...state.favorites, media] })),
   isFavorite: (mediaId) => get().favorites.some((item) => item.id === mediaId),
   mergeRemote: (remote) => set((state) => ({
@@ -47,5 +50,5 @@ export const useProfileStore = create<ProfileState>()(persist((set, get) => ({
     coverUrl: state.coverUrl || remote.coverUrl,
     favorites: [...remote.favorites, ...state.favorites].filter((media, index, all) => all.findIndex((item) => item.id === media.id && item.type === media.type) === index),
   })),
-  clearUserData: () => set((state) => ({ username: '', firstName: '', lastName: '', avatarUrl: undefined, coverUrl: undefined, favorites: [], language: state.language })),
+  clearUserData: () => set((state) => ({ username: '', firstName: '', lastName: '', avatarUrl: undefined, coverUrl: undefined, favorites: [], language: state.language, hasSeenTutorial: false })),
 }), { name: 'episode-profile-v1', storage: createJSONStorage(() => AsyncStorage) }));

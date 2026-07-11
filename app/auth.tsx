@@ -31,11 +31,11 @@ export default function AuthScreen() {
       setMode('signIn');
       return;
     }
-    router.back();
+    router.replace('/(tabs)');
   };
 
   return <Screen keyboardShouldPersistTaps="handled">
-    <View style={styles.header}><MotionPressable accessibilityLabel="Geri" onPress={() => router.back()} style={styles.back}><Ionicons name="close" size={22} color={colors.text} /></MotionPressable><Text style={styles.logo}>episode<Text style={styles.dot}>.</Text></Text></View>
+    <View style={styles.header}><Text style={styles.logo}>episode<Text style={styles.dot}>.</Text></Text></View>
     <View style={styles.body}>
       <Text style={styles.kicker}>HESABIN</Text>
       <Text style={styles.title}>{mode === 'signIn' ? 'Tekrar hoş geldin' : 'Episode’a katıl'}</Text>
@@ -50,5 +50,5 @@ export default function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: spacing.lg }, back: { position: 'absolute', left: spacing.lg, width: 42, height: 42, borderRadius: 21, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }, logo: { color: colors.text, fontSize: 28, fontWeight: '900', letterSpacing: -1.4 }, dot: { color: colors.primary }, body: { paddingHorizontal: spacing.lg, paddingTop: spacing.xl }, kicker: { color: colors.primary, fontSize: 10, fontWeight: '900', letterSpacing: 1.6 }, title: { color: colors.text, fontSize: 36, fontWeight: '900', letterSpacing: -1.2, marginTop: spacing.sm }, subtitle: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: spacing.md, marginBottom: spacing.xl }, warning: { flexDirection: 'row', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: 'rgba(248,193,92,.08)', marginBottom: spacing.md }, warningText: { flex: 1, color: colors.warning, lineHeight: 18, fontSize: 12 }, input: { height: 54, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, color: colors.text, paddingHorizontal: spacing.md, marginBottom: spacing.sm }, submit: { height: 54, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: colors.primary, marginTop: spacing.sm }, submitText: { color: '#fff', fontWeight: '900' }, switch: { alignItems: 'center', padding: spacing.md }, switchText: { color: colors.muted, fontSize: 12, fontWeight: '700' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: spacing.lg }, logo: { color: colors.text, fontSize: 28, fontWeight: '900', letterSpacing: -1.4 }, dot: { color: colors.primary }, body: { paddingHorizontal: spacing.lg, paddingTop: spacing.xl }, kicker: { color: colors.primary, fontSize: 10, fontWeight: '900', letterSpacing: 1.6 }, title: { color: colors.text, fontSize: 36, fontWeight: '900', letterSpacing: -1.2, marginTop: spacing.sm }, subtitle: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: spacing.md, marginBottom: spacing.xl }, warning: { flexDirection: 'row', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: 'rgba(248,193,92,.08)', marginBottom: spacing.md }, warningText: { flex: 1, color: colors.warning, lineHeight: 18, fontSize: 12 }, input: { height: 54, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, color: colors.text, paddingHorizontal: spacing.md, marginBottom: spacing.sm }, submit: { height: 54, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: colors.primary, marginTop: spacing.sm }, submitText: { color: '#fff', fontWeight: '900' }, switch: { alignItems: 'center', padding: spacing.md }, switchText: { color: colors.muted, fontSize: 12, fontWeight: '700' },
 });
