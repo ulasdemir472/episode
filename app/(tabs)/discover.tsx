@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Screen } from '@/components/Screen';
@@ -9,6 +9,7 @@ import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { catalogService } from '@/services/tmdb';
 import { colors, radius, spacing } from '@/theme/tokens';
 import { useProfileStore } from '@/store/profile-store';
+import { MotionPressable } from '@/components/MotionPressable';
 
 type TypeFilter = 'all' | MediaType;
 type Genre = { tr: string; en: string; movie: number; tv: number };
@@ -62,11 +63,11 @@ export default function DiscoverScreen() {
 
     {!searching && <>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
-        {typeFilters.map((item) => <Pressable key={item.value} onPress={() => changeType(item.value)} style={[styles.typeFilter, type === item.value && styles.filterActive]}><Ionicons name={item.icon} size={16} color={type === item.value ? '#fff' : colors.muted} /><Text style={[styles.filterText, type === item.value && styles.filterTextActive]}>{en ? item.en : item.tr}</Text></Pressable>)}
+        {typeFilters.map((item) => <MotionPressable key={item.value} onPress={() => changeType(item.value)} style={[styles.typeFilter, type === item.value && styles.filterActive]}><Ionicons name={item.icon} size={16} color={type === item.value ? '#fff' : colors.muted} /><Text style={[styles.filterText, type === item.value && styles.filterTextActive]}>{en ? item.en : item.tr}</Text></MotionPressable>)}
       </ScrollView>
       {type !== 'all' && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.genres}>
-        <Pressable onPress={() => setGenre(undefined)} style={[styles.genre, !genre && styles.genreActive]}><Text style={[styles.genreText, !genre && styles.genreTextActive]}>{en ? 'Popular' : 'Popüler'}</Text></Pressable>
-        {genres.map((item) => <Pressable key={item.en} onPress={() => setGenre(item)} style={[styles.genre, genre?.en === item.en && styles.genreActive]}><Text style={[styles.genreText, genre?.en === item.en && styles.genreTextActive]}>{en ? item.en : item.tr}</Text></Pressable>)}
+        <MotionPressable onPress={() => setGenre(undefined)} style={[styles.genre, !genre && styles.genreActive]}><Text style={[styles.genreText, !genre && styles.genreTextActive]}>{en ? 'Popular' : 'Popüler'}</Text></MotionPressable>
+        {genres.map((item) => <MotionPressable key={item.en} onPress={() => setGenre(item)} style={[styles.genre, genre?.en === item.en && styles.genreActive]}><Text style={[styles.genreText, genre?.en === item.en && styles.genreTextActive]}>{en ? item.en : item.tr}</Text></MotionPressable>)}
       </ScrollView>}
     </>}
 

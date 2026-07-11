@@ -12,6 +12,7 @@ import { catalogService } from '@/services/tmdb';
 import { useLibraryStore } from '@/store/library-store';
 import { useProfileStore } from '@/store/profile-store';
 import { colors, radius, spacing } from '@/theme/tokens';
+import { MotionPressable } from '@/components/MotionPressable';
 
 function parseMedia(data?: string): Media | undefined {
   if (!data) return undefined;
@@ -50,6 +51,7 @@ export default function MediaDetailScreen() {
   const saved = media ? items.some((item) => item.media.id === media.id) : false;
   const favorite = media ? favorites.some((item) => item.id === media.id) : false;
   const currentStatus = media ? items.find((item) => item.media.id === media.id)?.status : undefined;
+  const hasWatchedEpisode = useMemo(() => media ? Object.keys(watchedEpisodes).some((key) => key.startsWith(`${media.id}:`)) : false, [media, watchedEpisodes]);
 
   const seriesQuery = useQuery({
     queryKey: ['series', media?.id], queryFn: () => catalogService.seriesDetails(media!.id),
@@ -134,16 +136,16 @@ export default function MediaDetailScreen() {
       </View>
       {media.genres.length > 0 && <Text style={styles.genres}>{media.genres.join('  ·  ')}</Text>}
       <Text style={styles.overview}>{media.overview}</Text>
-      <Pressable style={[styles.action, saved && styles.saved]} onPress={toggleSaved}><Ionicons name={saved ? 'checkmark' : 'add'} size={21} color="#fff" /><Text style={styles.actionText}>{saved ? 'Listemde' : 'Listeme ekle'}</Text></Pressable>
-      <Pressable disabled={media.type === 'tv' && seasons.length === 0} style={[styles.watchedAction, currentStatus === 'completed' && styles.watchedActive, media.type === 'tv' && seasons.length === 0 && styles.disabled]} onPress={markTitleWatched}><Ionicons name={currentStatus === 'completed' ? 'checkmark-circle' : 'checkmark-circle-outline'} size={21} color={currentStatus === 'completed' ? '#fff' : colors.text} /><Text style={styles.watchedText}>{currentStatus === 'completed' ? (media.type === 'movie' ? 'İzlendi · Geri al' : 'İzlendi') : media.type === 'movie' ? 'İzledim' : 'Tümünü izledim'}</Text></Pressable>
-      {media.type === 'tv' && saved && currentStatus !== 'completed' && <Pressable style={styles.dropAction} onPress={() => upsert(media, currentStatus === 'dropped' ? 'watching' : 'dropped')}><Ionicons name={currentStatus === 'dropped' ? 'play-outline' : 'stop-circle-outline'} size={18} color={currentStatus === 'dropped' ? colors.success : colors.muted} /><Text style={[styles.dropText, currentStatus === 'dropped' && styles.resumeText]}>{currentStatus === 'dropped' ? 'İzlemeye devam et' : 'İzlemeyi bıraktım'}</Text></Pressable>}
+      <MotionPressable style={[styles.action, saved && styles.saved]} onPress={toggleSaved}><Ionicons name={saved ? 'checkmark' : 'add'} size={21} color="#fff" /><Text style={styles.actionText}>{saved ? 'Listemde' : 'Listeme ekle'}</Text></MotionPressable>
+      <MotionPressable disabled={media.type === 'tv' && seasons.length === 0} style={[styles.watchedAction, currentStatus === 'completed' && styles.watchedActive, media.type === 'tv' && seasons.length === 0 && styles.disabled]} onPress={markTitleWatched}><Ionicons name={currentStatus === 'completed' ? 'checkmark-circle' : 'checkmark-circle-outline'} size={21} color={currentStatus === 'completed' ? '#fff' : colors.text} /><Text style={styles.watchedText}>{currentStatus === 'completed' ? (media.type === 'movie' ? 'İzlendi · Geri al' : 'İzlendi') : media.type === 'movie' ? 'İzledim' : 'Tümünü izledim'}</Text></MotionPressable>
+      {media.type === 'tv' && saved && currentStatus !== 'completed' && <MotionPressable style={styles.dropAction} onPress={() => upsert(media, currentStatus === 'dropped' ? 'watching' : 'dropped')}><Ionicons name={currentStatus === 'dropped' ? 'play-outline' : 'stop-circle-outline'} size={18} color={currentStatus === 'dropped' ? colors.success : colors.muted} /><Text style={[styles.dropText, currentStatus === 'dropped' && styles.resumeText]}>{currentStatus === 'dropped' ? 'İzlemeye devam et' : 'İzlemeyi bıraktım'}</Text></MotionPressable>}
 
       {media.type === 'tv' && <>
         <View style={styles.rule} />
         <View style={styles.sectionRow}><View><Text style={styles.section}>Bölümler</Text>{activeSeason && <Text style={styles.progressText}>{watchedCount}/{episodesQuery.data?.length ?? 0} izlendi</Text>}</View></View>
         {seriesQuery.isLoading ? <ActivityIndicator color={colors.primary} style={styles.loader} /> :
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.seasons}>
-            {seriesQuery.data?.seasons.map((item) => <Pressable key={item.id} onPress={() => setSeason(item.number)} style={[styles.season, activeSeason === item.number && styles.seasonActive]}><Text style={[styles.seasonText, activeSeason === item.number && styles.seasonTextActive]}>{item.number}. Sezon</Text><Text style={[styles.seasonCount, activeSeason === item.number && styles.seasonTextActive]}>{item.episodeCount} bölüm</Text></Pressable>)}
+            {seriesQuery.data?.seasons.map((item) => <MotionPressable key={item.id} onPress={() => setSeason(item.number)} style={[styles.season, activeSeason === item.number && styles.seasonActive]}><Text style={[styles.seasonText, activeSeason === item.number && styles.seasonTextActive]}>{item.number}. Sezon</Text><Text style={[styles.seasonCount, activeSeason === item.number && styles.seasonTextActive]}>{item.episodeCount} bölüm</Text></MotionPressable>)}
           </ScrollView>}
         {episodesQuery.isLoading ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : episodesQuery.isError ? <Text style={styles.error}>Bölümler yüklenemedi. API anahtarını ve bağlantını kontrol et.</Text> :
           <View style={styles.episodes}>{episodesQuery.data?.map((episode) => {
@@ -159,12 +161,12 @@ export default function MediaDetailScreen() {
         {!!episodesQuery.data?.length && <View style={styles.discussionPicker}>
           <Text style={styles.discussionLabel}>Bölüm yorumu seç</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.discussionChips}>
-            {episodesQuery.data.map((episode) => <Pressable key={`discussion-${episode.id}`} onPress={() => setSocialEpisode(episode)} style={[styles.discussionChip, socialEpisode?.id === episode.id && styles.discussionChipActive]}><Ionicons name="chatbubble-outline" size={13} color={socialEpisode?.id === episode.id ? '#fff' : colors.muted} /><Text style={[styles.discussionChipText, socialEpisode?.id === episode.id && styles.discussionChipTextActive]}>B{episode.number}</Text></Pressable>)}
+            {episodesQuery.data.map((episode) => <MotionPressable key={`discussion-${episode.id}`} onPress={() => setSocialEpisode(episode)} style={[styles.discussionChip, socialEpisode?.id === episode.id && styles.discussionChipActive]}><Ionicons name="chatbubble-outline" size={13} color={socialEpisode?.id === episode.id ? '#fff' : colors.muted} /><Text style={[styles.discussionChipText, socialEpisode?.id === episode.id && styles.discussionChipTextActive]}>B{episode.number}</Text></MotionPressable>)}
           </ScrollView>
         </View>}
-        {socialEpisode && <CommunityPanel targetKey={`episode:${media.id}:${socialEpisode.seasonNumber}:${socialEpisode.number}`} title={`S${socialEpisode.seasonNumber} B${socialEpisode.number} · Puanlar ve yorumlar`} />}
+        {socialEpisode && <CommunityPanel targetKey={`episode:${media.id}:${socialEpisode.seasonNumber}:${socialEpisode.number}`} title={`S${socialEpisode.seasonNumber} B${socialEpisode.number} · Puanlar ve yorumlar`} canComment={Boolean(watchedEpisodes[`${media.id}:${socialEpisode.seasonNumber}:${socialEpisode.number}`])} />}
       </>}
-      <CommunityPanel targetKey={`media:${media.type}:${media.id}`} />
+      <CommunityPanel targetKey={`media:${media.type}:${media.id}`} canComment={media.type === 'movie' ? currentStatus === 'completed' : currentStatus === 'completed' || hasWatchedEpisode} />
     </View>
   </Screen>;
 }

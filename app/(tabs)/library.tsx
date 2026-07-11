@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { FlatList, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { Screen } from '@/components/Screen';
 import { MediaCard } from '@/components/MediaCard';
@@ -8,6 +8,7 @@ import { catalogService } from '@/services/tmdb';
 import { useLibraryStore } from '@/store/library-store';
 import { colors, radius, spacing } from '@/theme/tokens';
 import { useProfileStore } from '@/store/profile-store';
+import { MotionPressable } from '@/components/MotionPressable';
 
 type LibraryFilter = LibraryStatus | 'favorites';
 
@@ -42,7 +43,7 @@ export default function LibraryScreen() {
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
       {filters.map((item) => {
         const count = item.value === 'favorites' ? favorites.length : allItems.filter((libraryItem) => libraryItem.status === item.value).length;
-        return <Pressable key={item.value} style={[styles.filter, filter === item.value && styles.active]} onPress={() => setFilter(item.value)}><Text style={[styles.filterText, filter === item.value && styles.activeText]}>{en ? item.en : item.tr}</Text><View style={[styles.count, filter === item.value && styles.activeCount]}><Text style={[styles.countText, filter === item.value && styles.activeCountText]}>{count}</Text></View></Pressable>;
+        return <MotionPressable key={item.value} style={[styles.filter, filter === item.value && styles.active]} onPress={() => setFilter(item.value)}><Text style={[styles.filterText, filter === item.value && styles.activeText]}>{en ? item.en : item.tr}</Text><View style={[styles.count, filter === item.value && styles.activeCount]}><Text style={[styles.countText, filter === item.value && styles.activeCountText]}>{count}</Text></View></MotionPressable>;
       })}
     </ScrollView>
     <FlatList scrollEnabled={false} data={items} keyExtractor={(item) => `${item.status}-${item.media.id}`} numColumns={2} columnWrapperStyle={styles.row} contentContainerStyle={styles.grid} renderItem={({ item }) => <LibraryMediaCard item={item} />} ListEmptyComponent={<View style={styles.emptyBox}><Text style={styles.emptyTitle}>Burada henüz bir şey yok</Text><Text style={styles.empty}>Bir dizinin bölümünü işaretlediğinde otomatik olarak “İzliyorum” listesine taşınır.</Text></View>} />

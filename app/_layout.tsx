@@ -24,5 +24,5 @@ Notifications.setNotificationHandler({ handleNotification: async () => ({ should
 
 export default function RootLayout() {
   useEffect(() => { Notifications.setBadgeCountAsync(0).catch(() => undefined); }, []);
-  return <SafeAreaProvider><QueryClientProvider client={queryClient}><StatusBar style="light" /><Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background }, animation: 'fade' }}><Stack.Screen name="(tabs)" /><Stack.Screen name="media/[id]" options={{ presentation: 'card' }} /></Stack></QueryClientProvider></SafeAreaProvider>;
+  return <SafeAreaProvider><QueryClientProvider client={queryClient}><StatusBar style="light" /><Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background }, animation: 'fade' }}><Stack.Screen name="(tabs)" /><Stack.Screen name="media/[id]" options={{ presentation: 'card', animation: 'slide_from_right' }} /></Stack></QueryClientProvider></SafeAreaProvider>;
 }
