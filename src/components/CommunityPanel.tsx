@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -10,25 +10,31 @@ import { colors, radius, spacing } from '@/theme/tokens';
 import { MotionPressable } from '@/components/MotionPressable';
 import { useScrollToScreenEnd } from '@/components/Screen';
 import { useAuth } from '@/features/auth/AuthProvider';
-import { fetchCommunitySnapshot, persistComment, persistRating, softDeleteComment } from '@/features/community/community-repository';
+import { CommunitySnapshot, fetchCommunitySnapshot, persistComment, persistRating, softDeleteComment } from '@/features/community/community-repository';
 import { isSupabaseConfigured, supabase } from '@/infrastructure/supabase/client';
+import { SubmissionLock } from '@/features/community/submission-lock';
 
 export function CommunityPanel({ targetKey, title, canReview }: { targetKey: string; title?: string; canReview: boolean }) {
   const [text, setText] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submissionLock = useRef(new SubmissionLock());
   const allComments = useCommunityStore((state) => state.comments);
   const localComments = useMemo(() => allComments.filter((comment) => comment.targetKey === targetKey), [allComments, targetKey]);
   const localRating = useCommunityStore((state) => state.ratings[targetKey]);
   const addComment = useCommunityStore((state) => state.addComment);
+  const discardComment = useCommunityStore((state) => state.discardComment);
   const removeComment = useCommunityStore((state) => state.removeComment);
+  const deletedCommentIds = useCommunityStore((state) => state.deletedCommentIds);
+  const acknowledgeCommentDeletion = useCommunityStore((state) => state.acknowledgeCommentDeletion);
   const rate = useCommunityStore((state) => state.rate);
   const profile = useProfileStore();
   const auth = useAuth();
   const queryClient = useQueryClient();
   const communityQuery = useQuery({ queryKey: ['community', targetKey], queryFn: () => fetchCommunitySnapshot(targetKey), enabled: isSupabaseConfigured, staleTime: 30_000 });
   const comments = useMemo(() => {
-    const merged = [...(communityQuery.data?.comments ?? []), ...localComments];
+    const merged = [...(communityQuery.data?.comments ?? []), ...localComments].filter((comment) => !deletedCommentIds.includes(comment.id));
     return merged.filter((comment, index) => merged.findIndex((item) => item.id === comment.id) === index);
-  }, [communityQuery.data?.comments, localComments]);
+  }, [communityQuery.data?.comments, deletedCommentIds, localComments]);
   const rating = auth.user ? communityQuery.data?.ratings.find((item) => item.userId === auth.user!.id)?.score ?? localRating : localRating;
   const canInteract = Boolean(auth.user && canReview);
   const scrollToScreenEnd = useScrollToScreenEnd();
@@ -55,14 +61,23 @@ export function CommunityPanel({ targetKey, title, canReview }: { targetKey: str
 
   const submit = async () => {
     if (!auth.user) { openAuth(); return; }
-    if (!canReview || !text.trim()) return;
+    if (!canReview || !text.trim() || !submissionLock.current.tryAcquire()) return;
+    setIsSubmitting(true);
     const comment = addComment(targetKey, auth.user.id, author, text);
     setText('');
     try {
       await persistComment(comment);
       await queryClient.invalidateQueries({ queryKey: ['community', targetKey] });
-    } catch {
-      Alert.alert('Yorum cihazda saklandı', 'Sunucuya gönderilemedi. Bağlantı veya veritabanı kurallarını kontrol et.');
+    } catch (error) {
+      if ((error as { code?: string }).code === '23505') {
+        discardComment(comment.id);
+        Alert.alert(en ? 'Duplicate comment' : 'Aynı yorum zaten var', en ? 'The same comment cannot be posted twice.' : 'Aynı yorumu iki kez gönderemezsin.');
+      } else {
+        Alert.alert('Yorum cihazda saklandı', 'Sunucuya gönderilemedi. Bağlantı veya veritabanı kurallarını kontrol et.');
+      }
+    } finally {
+      submissionLock.current.release();
+      setIsSubmitting(false);
     }
   };
   const submitRating = async (score: number) => {
@@ -80,8 +95,15 @@ export function CommunityPanel({ targetKey, title, canReview }: { targetKey: str
     { text: en ? 'Cancel' : 'İptal', style: 'cancel' },
     { text: en ? 'Delete' : 'Sil', style: 'destructive', onPress: async () => {
       removeComment(commentId);
-      if (auth.user) await softDeleteComment(auth.user.id, commentId).catch(() => undefined);
-      await queryClient.invalidateQueries({ queryKey: ['community', targetKey] });
+      queryClient.setQueryData<CommunitySnapshot>(['community', targetKey], (snapshot) => snapshot ? { ...snapshot, comments: snapshot.comments.filter((comment) => comment.id !== commentId) } : snapshot);
+      if (!auth.user) return;
+      try {
+        await softDeleteComment(auth.user.id, commentId);
+        acknowledgeCommentDeletion(commentId);
+        await queryClient.invalidateQueries({ queryKey: ['community', targetKey] });
+      } catch {
+        Alert.alert(en ? 'Comment hidden' : 'Yorum gizlendi', en ? 'It will be deleted from the server when synchronization succeeds.' : 'Senkronizasyon başarılı olduğunda sunucudan da silinecek.');
+      }
     } },
   ]);
 
@@ -90,10 +112,10 @@ export function CommunityPanel({ targetKey, title, canReview }: { targetKey: str
     <Text style={styles.label}>{en ? 'Your rating' : 'Puanın'} {rating ? `· ${rating}/10` : ''}</Text>
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ratings}>{Array.from({ length: 10 }, (_, index) => index + 1).map((value) => <MotionPressable key={value} accessibilityLabel={en ? `Rate ${value} out of 10` : `${value} puan ver`} disabled={!canInteract} onPress={() => submitRating(value)} style={[styles.rating, rating === value && styles.ratingActive]}><Text style={[styles.ratingText, rating === value && styles.ratingTextActive]}>{value}</Text></MotionPressable>)}</ScrollView>
     {comments.length === 0 ? <Text style={styles.empty}>{en ? 'No comments yet.' : 'Henüz yorum yok.'}</Text> : comments.map((comment) => <View key={comment.id} style={styles.comment}><View style={styles.commentHead}><Text style={styles.author}>{comment.author}</Text><View style={styles.commentTools}><Text style={styles.date}>{new Date(comment.createdAt).toLocaleDateString(en ? 'en-US' : 'tr-TR')}</Text>{(!comment.authorId || comment.authorId === profile.id || comment.authorId === auth.user?.id) && <MotionPressable accessibilityLabel={en ? 'Delete comment' : 'Yorumu sil'} onPress={() => confirmRemove(comment.id)} style={styles.delete}><Ionicons name="trash-outline" size={14} color={colors.primary} /></MotionPressable>}</View></View><Text style={styles.commentText}>{comment.text}</Text></View>)}
-    {!auth.user ? <View style={styles.locked}><Ionicons name="person-circle-outline" size={18} color={colors.warning} /><Text style={styles.lockedText}>{en ? 'Sign in to rate or comment.' : 'Puanlamak veya yorum yapmak için giriş yapmalısın.'}</Text><MotionPressable onPress={openAuth} style={styles.login}><Text style={styles.loginText}>{en ? 'Sign in' : 'Giriş'}</Text></MotionPressable></View> : canReview ? <View style={styles.composer}><TextInput value={text} onChangeText={setText} onFocus={scrollToScreenEnd} multiline placeholder={en ? 'Write a spoiler-free comment…' : 'Spoiler vermeden yorum yaz…'} placeholderTextColor={colors.muted} style={styles.input} /><MotionPressable accessibilityLabel={en ? 'Send comment' : 'Yorumu gönder'} onPress={submit} style={styles.send}><Ionicons name="send" size={17} color="#fff" /></MotionPressable></View> : <View style={styles.locked}><Ionicons name="lock-closed" size={16} color={colors.warning} /><Text style={styles.lockedText}>{en ? 'You need to watch this title or episode before rating or commenting.' : 'Puanlamak veya yorum yapmak için önce bu yapımı ya da bölümü izlemelisin.'}</Text></View>}
+    {!auth.user ? <View style={styles.locked}><Ionicons name="person-circle-outline" size={18} color={colors.warning} /><Text style={styles.lockedText}>{en ? 'Sign in to rate or comment.' : 'Puanlamak veya yorum yapmak için giriş yapmalısın.'}</Text><MotionPressable onPress={openAuth} style={styles.login}><Text style={styles.loginText}>{en ? 'Sign in' : 'Giriş'}</Text></MotionPressable></View> : canReview ? <View style={styles.composer}><TextInput value={text} onChangeText={setText} onFocus={scrollToScreenEnd} multiline placeholder={en ? 'Write a spoiler-free comment…' : 'Spoiler vermeden yorum yaz…'} placeholderTextColor={colors.muted} style={styles.input} /><MotionPressable accessibilityLabel={en ? 'Send comment' : 'Yorumu gönder'} disabled={isSubmitting} onPress={() => void submit()} style={[styles.send, isSubmitting && styles.sendDisabled]}><Ionicons name="send" size={17} color="#fff" /></MotionPressable></View> : <View style={styles.locked}><Ionicons name="lock-closed" size={16} color={colors.warning} /><Text style={styles.lockedText}>{en ? 'You need to watch this title or episode before rating or commenting.' : 'Puanlamak veya yorum yapmak için önce bu yapımı ya da bölümü izlemelisin.'}</Text></View>}
   </View>;
 }
 
 const styles = StyleSheet.create({
-  root: { marginTop: spacing.xl, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border }, title: { color: colors.text, fontSize: 20, fontWeight: '900' }, label: { color: colors.muted, fontSize: 11, fontWeight: '700', marginTop: spacing.md }, ratings: { gap: 6, paddingVertical: spacing.sm }, rating: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.elevated, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }, ratingActive: { backgroundColor: colors.warning, borderColor: colors.warning }, ratingText: { color: colors.muted, fontSize: 11, fontWeight: '800' }, ratingTextActive: { color: colors.background }, composer: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, marginTop: spacing.md }, input: { flex: 1, minHeight: 48, maxHeight: 110, color: colors.text, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md, paddingVertical: 12 }, send: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }, locked: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, marginTop: spacing.md, borderRadius: radius.md, backgroundColor: 'rgba(248,193,92,.08)', borderWidth: 1, borderColor: 'rgba(248,193,92,.22)' }, lockedText: { flex: 1, color: colors.warning, fontSize: 11, lineHeight: 16, fontWeight: '700' }, login: { borderRadius: radius.pill, backgroundColor: colors.warning, paddingHorizontal: 12, paddingVertical: 7 }, loginText: { color: colors.background, fontSize: 10, fontWeight: '900' }, empty: { color: colors.muted, fontSize: 12, marginVertical: spacing.lg }, comment: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border, marginTop: spacing.sm }, commentHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, commentTools: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm }, author: { color: colors.text, fontSize: 12, fontWeight: '800' }, date: { color: colors.muted, fontSize: 9 }, delete: { width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(255,90,71,.1)', alignItems: 'center', justifyContent: 'center' }, commentText: { color: '#C7C5CA', fontSize: 13, lineHeight: 19, marginTop: 7 },
+  root: { marginTop: spacing.xl, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border }, title: { color: colors.text, fontSize: 20, fontWeight: '900' }, label: { color: colors.muted, fontSize: 11, fontWeight: '700', marginTop: spacing.md }, ratings: { gap: 6, paddingVertical: spacing.sm }, rating: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.elevated, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }, ratingActive: { backgroundColor: colors.warning, borderColor: colors.warning }, ratingText: { color: colors.muted, fontSize: 11, fontWeight: '800' }, ratingTextActive: { color: colors.background }, composer: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, marginTop: spacing.md }, input: { flex: 1, minHeight: 48, maxHeight: 110, color: colors.text, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md, paddingVertical: 12 }, send: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }, sendDisabled: { opacity: 0.5 }, locked: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, marginTop: spacing.md, borderRadius: radius.md, backgroundColor: 'rgba(248,193,92,.08)', borderWidth: 1, borderColor: 'rgba(248,193,92,.22)' }, lockedText: { flex: 1, color: colors.warning, fontSize: 11, lineHeight: 16, fontWeight: '700' }, login: { borderRadius: radius.pill, backgroundColor: colors.warning, paddingHorizontal: 12, paddingVertical: 7 }, loginText: { color: colors.background, fontSize: 10, fontWeight: '900' }, empty: { color: colors.muted, fontSize: 12, marginVertical: spacing.lg }, comment: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border, marginTop: spacing.sm }, commentHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, commentTools: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm }, author: { color: colors.text, fontSize: 12, fontWeight: '800' }, date: { color: colors.muted, fontSize: 9 }, delete: { width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(255,90,71,.1)', alignItems: 'center', justifyContent: 'center' }, commentText: { color: '#C7C5CA', fontSize: 13, lineHeight: 19, marginTop: 7 },
 });

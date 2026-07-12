@@ -70,12 +70,12 @@ export default function MediaDetailScreen() {
   });
   const imdbTitleQuery = useQuery({
     queryKey: ['imdb-title', media?.type, media?.id], queryFn: () => catalogService.imdbTitleRating(media!),
-    enabled: Boolean(media && process.env.EXPO_PUBLIC_OMDB_API_KEY), staleTime: 24 * 60 * 60_000,
+    enabled: Boolean(media), staleTime: 7 * 24 * 60 * 60_000,
   });
   const imdbEpisodesQuery = useQuery({
     queryKey: ['imdb-episodes', media?.id, activeSeason],
     queryFn: () => catalogService.imdbEpisodeRatings(media!.title, activeSeason!, episodesQuery.data!),
-    enabled: Boolean(media && activeSeason && episodesQuery.data?.length && process.env.EXPO_PUBLIC_OMDB_API_KEY),
+    enabled: Boolean(media && activeSeason && episodesQuery.data?.length),
     staleTime: 24 * 60 * 60_000,
   });
 

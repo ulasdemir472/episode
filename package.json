@@ -21,6 +21,10 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "jest --runInBand",
+    "test:watch": "jest --watch",
+    "test:business": "jest src/store src/features/community src/features/sync --runInBand",
+    "test:performance": "jest src/performance --runInBand",
+    "test:coverage": "jest --coverage --runInBand",
     "validate": "npm run typecheck && npm run lint && npm test"
   },
   "dependencies": {

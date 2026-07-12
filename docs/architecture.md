@@ -17,6 +17,11 @@ Request Cache (TTL, stale-if-error, aynı istekleri birleştirme)
         +----> CacheStore portu ----> AsyncStorage adaptörü
         |
         v
+Supabase Edge Function (JWT, endpoint allowlist, sunucu anahtarları)
+        |
+        +----> PostgreSQL ortak cache + günlük kullanım sayaçları
+        |
+        v (yalnızca ortak cache miss)
 TMDB / OMDb
 ```
 
@@ -27,37 +32,40 @@ Katmanların sorumlulukları ayrıdır:
 - `CatalogService` dış sağlayıcının DTO'larını domain modellerine çevirir.
 - `RequestCache` sağlayıcıdan bağımsız cache politikalarını uygular.
 - `CacheStore` bir porttur; AsyncStorage yalnızca bugünkü adaptördür.
-- TMDB ve OMDb erişimi zaman aşımı ve tipli hata sınırları içinden yapılır.
+- TMDB ve OMDb anahtarları yalnızca Edge Function secret'larında bulunur.
+- Edge Function izinli endpoint listesini, ortak TTL cache'i, günlük sayaçları ve OMDb güvenlik limitini uygular.
 
 ## Cache politikaları
 
 | Veri | Fresh TTL | Sağlayıcı hatasında stale süre |
 |---|---:|---:|
 | Trend listesi | 30 dakika | 1 gün |
-| Kategori keşfi | 1 saat | 3 gün |
+| Kategori keşfi | 1–2 saat | 3 gün |
 | Arama sonucu | 1 gün | 7 gün |
 | Dizi/sezon bilgisi | 12 saat–1 gün | 7 gün |
 | TMDB dış kimlikleri | 30 gün | 30 gün |
-| IMDb puanları | 1 gün | 7 gün |
+| IMDb puanları | 7 gün | 30 gün |
 | Bölüm yayın takvimi | 2 saat | 1 gün |
 
-Cache en fazla 250 kalıcı ve 100 bellek içi kayıt tutar. Yeni kayıtlar sınırı aşınca en eski kayıtlar silinir. Aynı cache anahtarına eşzamanlı gelen çağrılar tek network isteğinde birleştirilir. Hatalı JSON veya başarısız cache yazımı kullanıcı akışını durdurmaz.
+Cihaz cache'i en fazla 250 kalıcı ve 100 bellek içi kayıt tutar. Ortak PostgreSQL cache'inde stale süresi dolmuş kayıtlar örneklemeli temizlikle kaldırılır. Aynı cihazdaki eşzamanlı çağrılar tek network isteğinde birleştirilir. Hatalı cache yazımı kullanıcı akışını durdurmaz.
 
 Arama alanında 450 ms debounce vardır. OMDb bölüm puanları bölüm başına çağrı yapmak yerine sezon başına tek çağrıyla alınır. Takip edilen dizilerin TMDB sorguları beşli gruplar halinde çalıştırılır.
 
-## Veritabanına geçiş
+## Kota ve ölçek sınırları
 
-Veritabanı eklendiğinde mobil uygulamanın doğrudan TMDB'ye bağlanması kaldırılmalıdır. Önerilen hedef akış:
+OMDb için günlük 1.000 isteğin 950'si atomik olarak rezerve edilebilir; kalan pay operasyonel testler için bırakılır. Limit dolduğunda geçerli stale kayıt varsa sunulur, yoksa kontrollü `429` üretilir. Bu tasarım kotaya hiç ulaşılmayacağını garanti etmez; benzersiz başlık/sezon sayısı cache hit oranından hızlı büyürse limite ulaşılabilir.
 
-```text
-Mobile App -> Episode BFF/API -> PostgreSQL/Redis -> TMDB/OMDb
+`external_api_usage_daily` tablosu dış istek, fresh cache hit, stale hit ve hata sayılarını tutar. Operasyon kontrolü:
+
+```sql
+select usage_date, service, request_count, cache_hit_count,
+       stale_hit_count, error_count,
+       round(100.0 * cache_hit_count / nullif(cache_hit_count + request_count, 0), 1) as cache_hit_percent
+from public.external_api_usage_daily
+order by usage_date desc, service;
 ```
 
-1. `CacheStore` için SQLite adaptörü eklenerek cihaz cache'i daha sorgulanabilir hale getirilebilir.
-2. Asıl katalog cache'i backend tarafında PostgreSQL; kısa süreli hot-cache Redis üzerinde tutulabilir.
-3. Mobil `CatalogService` adaptörü TMDB yerine Episode BFF endpoint'lerini çağırır. Domain ve ekran katmanları değişmez.
-4. Backend sağlayıcı anahtarlarını gizler, `ETag`/`Cache-Control` üretir ve 429 yanıtlarında kontrollü backoff uygular.
-5. Worker/queue yeni bölüm ve takip edilen yapımları periyodik günceller; mobil istemci yalnızca hazır veriyi okur.
+PostgreSQL cache erken aşama ve orta trafik için doğru maliyet/karmaşıklık dengesidir. Sürekli yüksek eşzamanlılıkta aynı cache miss'in birden fazla dış çağrı üretmesi mümkündür. OMDb günlük tüketimi düzenli olarak 700'ü veya katalog Edge Function p95 süresi 500 ms'yi geçerse Redis tabanlı distributed lock/hot cache ve arka plan yenileme worker'ına geçilmelidir. IMDb puanı ürün için kritik hale gelirse 1.000/gün ücretsiz OMDb planına güvenmek yerine lisanslı veri sağlayıcı veya ücretli plan seçilmelidir.
 
 Önerilen ilk tablolar:
 
@@ -74,4 +82,4 @@ Kullanıcı işlemleri için benzersiz kısıtlar ve idempotency anahtarları ku
 
 ## Üretim güvenliği
 
-`EXPO_PUBLIC_*` değişkenleri mobil bundle içinde görülebilir. Üretim sürümünde TMDB ve OMDb anahtarları BFF'e taşınmalıdır. Mobil uygulama yalnızca Episode API access token'ını kullanmalı; kullanıcı oturumları kısa ömürlü access token ve güvenli refresh token rotasyonuyla yönetilmelidir.
+`EXPO_PUBLIC_*` değişkenleri mobil bundle içinde görülebilir. TMDB ve OMDb anahtarları yalnızca Supabase secret olarak saklanır. Ortak cache ve sayaç tablolarında RLS açıktır ve istemci policy'si yoktur; yalnızca Edge Function service role ile erişir. Edge Function varsayılan JWT doğrulamasıyla deploy edilmelidir.

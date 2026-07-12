@@ -137,6 +137,15 @@ export async function persistCurrentUserState(userId: string): Promise<void> {
     if (result.error) throw result.error;
   }
 
+  if (community.deletedCommentIds.length > 0) {
+    const deletedAt = new Date().toISOString();
+    await Promise.all(community.deletedCommentIds.map(async (commentId) => {
+      const result = await client.from('comments').update({ deleted_at: deletedAt }).eq('id', commentId).eq('user_id', userId);
+      if (result.error) throw result.error;
+      useCommunityStore.getState().acknowledgeCommentDeletion(commentId);
+    }));
+  }
+
   const commentRows = community.comments.flatMap((comment) => {
     const target = parseReviewTarget(comment.targetKey);
     return target && canPersistReviewTarget(comment.targetKey, library.items, library.watchedEpisodes) ? [{ id: uuidPattern.test(comment.id) ? comment.id : createUuid(), user_id: userId, target_key: target.targetKey, target_type: target.targetType, media_type: target.mediaType, media_id: target.mediaId, season_number: target.seasonNumber, episode_number: target.episodeNumber, body: comment.text }] : [];

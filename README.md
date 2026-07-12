@@ -7,7 +7,7 @@ Film ve dizileri keşfetmek, izleme listelerini yönetmek ve yeni bölümleri ta
 - Sinematik koyu tema, erişilebilir sekme navigasyonu ve responsive kartlar
 - Ana sayfa, keşif/arama, yeni bölümler, kişisel liste ve detay ekranı
 - TMDB üzerinden tamamen dinamik film, dizi, sezon, bölüm ve yayın takvimi
-- TTL, stale-if-error ve istek birleştirme destekli kalıcı API cache katmanı
+- Cihaz + Supabase ortak cache, stale-if-error, kota sayacı ve sunucuda gizlenen API anahtarları
 - AsyncStorage üzerinde kalıcı izleme listesi
 - Bildirim izni ve yerel hatırlatıcı altyapısı
 - TypeScript strict mode, ESLint, Jest ve GitHub Actions kalite kapısı
@@ -26,25 +26,17 @@ pnpm start
 
 Terminalde çıkan QR kodu Expo Go ile okut. Android emülatör için `pnpm android` kullan.
 
-Gerçek katalog için [TMDB API ayarlarından](https://www.themoviedb.org/settings/api) bir **v4 Read Access Token** oluşturup `.env` içindeki `EXPO_PUBLIC_TMDB_ACCESS_TOKEN` değerine yaz. Bu değişken istemci paketine dahil olur; ilk prototip için uygundur, ancak üretimde token'ı mobil uygulamaya gömmek yerine kendi backend/BFF servisinde sakla.
-
 ### TMDB ve IMDb puanları
 
 1. [TMDB](https://www.themoviedb.org/) hesabı aç ve e-postanı doğrula.
 2. `Settings → API → Request an API Key → Developer` yolunu izleyip uygulama formunu doldur.
-3. API sayfasındaki uzun **API Read Access Token** değerini `.env` dosyasına ekle:
+3. API sayfasındaki uzun **API Read Access Token** değerini Supabase Edge Function secret'ı olarak ekle. OMDb anahtarını da aynı komutta tanımla:
 
-```env
-EXPO_PUBLIC_TMDB_ACCESS_TOKEN=eyJhbGciOiJIUzI1NiJ9...
+```bash
+npx supabase secrets set TMDB_ACCESS_TOKEN=eyJ... OMDB_API_KEY=anahtarin --project-ref PROJECT_REF
 ```
 
-IMDb'nin herkese açık resmi bir API'si yoktur. İsteğe bağlı IMDb puanları için [OMDb API](https://www.omdbapi.com/apikey.aspx) anahtarı alıp ekleyebilirsin:
-
-```env
-EXPO_PUBLIC_OMDB_API_KEY=anahtarin
-```
-
-Anahtarları ekledikten sonra Metro'yu `pnpm start --clear` ile yeniden başlat. EAS preview build içinde kullanmak için aynı değişkenleri Expo dashboard'unda `Project → Environment variables → preview` alanına ekle ve yeni build oluştur. OMDb anahtarı yoksa dizi ve bölüm ekranlarında TMDB puanları gösterilmeye devam eder.
+IMDb'nin herkese açık resmi bir API'si yoktur; puanlar [OMDb API](https://www.omdbapi.com/apikey.aspx) üzerinden gelir. Bu anahtarları `.env` veya EAS environment içine `EXPO_PUBLIC_*` adıyla koyma; mobil paketten okunabilirler.
 
 ### Supabase auth ve veritabani
 
@@ -71,6 +63,21 @@ Veritabani migration uygulanmadan uygulama acilir, ancak giris sonrasi liste/pro
 Arkadaslik ozelligi icin ayrica `supabase/migrations/202607110002_friendships.sql` dosyasini SQL Editor'de calistir.
 Telefondan profil fotografi secme ve yukleme icin `supabase/migrations/202607110003_avatar_storage.sql` dosyasini da calistir. Bu ozellik `expo-image-picker` kullandigi icin mevcut preview build'e EAS Update yetmez; yeni `eas build --platform ios --profile preview` gerekir.
 
+### Ortak katalog cache'ini kurma
+
+1. `supabase/migrations/202607120001_external_api_cache.sql` migration'ını SQL Editor'de çalıştır.
+2. Sunucu secret'larını tanımla ve fonksiyonu JWT doğrulamasını kapatmadan deploy et:
+
+```bash
+npx supabase login
+npx supabase link --project-ref PROJECT_REF
+npx supabase secrets set TMDB_ACCESS_TOKEN=eyJ... OMDB_API_KEY=anahtarin
+npx supabase functions deploy catalog-api
+```
+
+3. `external_api_usage_daily` tablosunu Table Editor'den veya [mimari dokümanındaki](docs/architecture.md) sorguyla izle. OMDb dış istekleri günlük 950'de durur; cache'teki stale puanlar 30 güne kadar servis edilmeye devam eder.
+4. Eski `EXPO_PUBLIC_TMDB_ACCESS_TOKEN` ve `EXPO_PUBLIC_OMDB_API_KEY` değerlerini EAS environment'lardan sil. Kod artık bunları kullanmaz. Mobil taraftaki değişiklik native modül içermediği için mevcut build'e EAS Update gönderilebilir.
+
 ## Test kullanicilarina dagitim
 
 1. `eas build --platform ios --profile preview` ile internal distribution build olustur.
@@ -87,6 +94,8 @@ npm run lint
 npm test
 npm run validate
 ```
+
+Her testin hangi kullanıcı davranışını koruduğu ve hangi komutun ne zaman çalıştırılacağı [test rehberinde](docs/testing.md) açıklanmıştır.
 
 ## Üretime geçiş
 

@@ -11,7 +11,7 @@ export const cachePolicies = {
   seriesDetails: { ttlMs: day, staleIfErrorMs: 7 * day },
   seasonEpisodes: { ttlMs: 12 * hour, staleIfErrorMs: 7 * day },
   externalIds: { ttlMs: 30 * day, staleIfErrorMs: 30 * day },
-  imdbTitle: { ttlMs: day, staleIfErrorMs: 7 * day },
-  imdbSeason: { ttlMs: day, staleIfErrorMs: 7 * day },
+  imdbTitle: { ttlMs: 7 * day, staleIfErrorMs: 30 * day },
+  imdbSeason: { ttlMs: 7 * day, staleIfErrorMs: 30 * day },
   schedule: { ttlMs: 2 * hour, staleIfErrorMs: day },
 } satisfies Record<string, CachePolicy>;
