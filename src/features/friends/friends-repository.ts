@@ -85,6 +85,23 @@ export async function fetchFriendships(currentUserId: string): Promise<Friendshi
   });
 }
 
+export async function fetchAcceptedFriendProfiles(profileId: string): Promise<PublicProfile[]> {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from('friendships')
+    .select('requester_id,addressee_id,created_at')
+    .eq('status', 'accepted')
+    .or(`requester_id.eq.${profileId},addressee_id.eq.${profileId}`)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  const profileIds = [...new Set((data ?? []).map((row) => row.requester_id === profileId ? row.addressee_id : row.requester_id))];
+  if (profileIds.length === 0) return [];
+  const profilesResult = await client.from('profiles').select('id,username,first_name,last_name,avatar_url,cover_url').in('id', profileIds);
+  if (profilesResult.error) throw profilesResult.error;
+  const profiles = new Map((profilesResult.data ?? []).map((profile) => [profile.id, toPublicProfile(profile)]));
+  return profileIds.flatMap((id) => profiles.get(id) ? [profiles.get(id)!] : []);
+}
+
 export async function sendFriendRequest(currentUserId: string, targetUserId: string): Promise<void> {
   const client = requireSupabase();
   const existing = await client

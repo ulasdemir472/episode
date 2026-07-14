@@ -115,7 +115,7 @@ export default function ProfileScreen() {
     <ScrollFocusTarget active={params.tutorialTarget === 'friends'}>
       <FriendsPanel userId={auth.user?.id} isEnglish={isEnglish} />
     </ScrollFocusTarget>
-    {auth.user ? <ProfileConnections profileId={auth.user.id} currentUserId={auth.user.id} language={profile.language} /> : null}
+    {auth.user ? <ProfileConnections profileId={auth.user.id} language={profile.language} /> : null}
 
     <View style={styles.sectionHeader}><Text style={styles.heading}>{isEnglish ? 'Profile cover' : 'Profil kapağı'}</Text>{profile.coverUrl ? <Pressable onPress={() => profile.setCover(undefined)} style={styles.removeCover}><Ionicons name="trash-outline" size={14} color={colors.primary} /><Text style={styles.removeCoverText}>{isEnglish ? 'Remove' : 'Kaldır'}</Text></Pressable> : <Text style={styles.caption}>{isEnglish ? 'Choose from your titles' : 'Yapımlarından seç'}</Text>}</View>
     {availableMedia.length > 0 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.coverChoices}>{availableMedia.map((media) => <Pressable key={`cover-${media.type}-${media.id}`} onPress={() => profile.setCover(media.backdropUrl || media.posterUrl)} style={[styles.coverChoice, profile.coverUrl === (media.backdropUrl || media.posterUrl) && styles.coverSelected]}><Image source={{ uri: media.backdropUrl || media.posterUrl }} style={styles.coverImage} /><Text numberOfLines={1} style={styles.coverTitle}>{media.title}</Text></Pressable>)}</ScrollView> : <Text style={styles.empty}>{isEnglish ? 'Add favorites or library titles to choose a cover.' : 'Kapak secmek icin favori veya listene yapim ekle.'}</Text>}
