@@ -23,6 +23,11 @@ export async function enableNotifications(userId?: string): Promise<boolean> {
   return true;
 }
 
+export async function notificationsAreEnabled(): Promise<boolean> {
+  if (Platform.OS === 'web') return false;
+  return (await Notifications.getPermissionsAsync()).granted;
+}
+
 export async function scheduleEpisodeReminder(title: string, body: string, date: Date) {
   return Notifications.scheduleNotificationAsync({ content: { title, body, sound: 'default', data: { route: '/releases' } }, trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date } });
 }

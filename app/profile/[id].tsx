@@ -4,7 +4,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { MediaCard } from '@/components/MediaCard';
+import { ProfileConnections } from '@/components/ProfileConnections';
 import { Screen } from '@/components/Screen';
+import { WatchLevelBadge } from '@/components/WatchLevelBadge';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { fetchFriendActivity } from '@/features/friends/friends-repository';
 import { formatWatchHours, useWatchMinutes } from '@/features/profile/watch-time';
@@ -17,7 +19,7 @@ export default function FriendProfileScreen() {
   const auth = useAuth();
   const query = useQuery({ queryKey: ['friend-profile', auth.user?.id, id], queryFn: () => fetchFriendActivity(auth.user!.id, id!), enabled: Boolean(auth.user && id), staleTime: 30_000 });
   const data = query.data;
-  const watchedMinutes = useWatchMinutes(data?.library ?? []);
+  const watchTime = useWatchMinutes(data?.library ?? []);
   if (query.isLoading) return <Screen><Header /><Text style={styles.state}>Profil yükleniyor…</Text></Screen>;
   if (!data) return <Screen><Header /><View style={styles.stateBox}><Ionicons name="lock-closed-outline" size={28} color={colors.muted} /><Text style={styles.state}>{query.error instanceof Error ? query.error.message : 'Profil açılamadı.'}</Text></View></Screen>;
   const profile = data.profile;
@@ -27,7 +29,9 @@ export default function FriendProfileScreen() {
   return <Screen>
     <View style={styles.hero}><ImageBackground source={profile.coverUrl ? { uri: profile.coverUrl } : undefined} style={StyleSheet.absoluteFill}><LinearGradient colors={['rgba(7,7,10,.12)', colors.background]} style={StyleSheet.absoluteFill} /></ImageBackground><Header /></View>
     <View style={styles.identity}>{profile.avatarUrl ? <Image source={{ uri: profile.avatarUrl }} style={styles.avatar} /> : <View style={styles.avatarFallback}><Text style={styles.initials}>{initials}</Text></View>}<Text style={styles.name}>{name}</Text>{profile.username ? <Text style={styles.username}>@{profile.username}</Text> : null}</View>
-    <View style={styles.stats}><Stat value={data.library.length} label="Yapım" /><Stat value={formatWatchHours(watchedMinutes)} label="Saat" /><Stat value={data.watchedEpisodeCount} label="Bölüm" /></View>
+    <WatchLevelBadge minutes={watchTime.minutes} isLoading={watchTime.isLoading} />
+    <View style={styles.stats}><Stat value={data.library.length} label="Yapım" /><Stat value={watchTime.isLoading ? '…' : formatWatchHours(watchTime.minutes)} label="Saat" /><Stat value={data.watchedEpisodeCount} label="Bölüm" /></View>
+    <ProfileConnections profileId={profile.id} currentUserId={auth.user?.id} />
     <Section title="Favorileri" count={data.favorites.length}>{data.favorites.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal}>{data.favorites.map((media) => <MediaCard key={`${media.type}-${media.id}`} media={media} width={126} />)}</ScrollView> : <Text style={styles.empty}>Henüz favorisi yok.</Text>}</Section>
     <Section title="İzleme geçmişi" count={data.library.length}>{data.library.length ? <View style={styles.library}>{data.library.map((item) => { const score = ratingByTarget.get(`media:${item.media.type}:${item.media.id}`); const next = item.progress?.nextEpisode; return <Pressable key={`${item.media.type}-${item.media.id}`} onPress={() => router.push({ pathname: '/media/[id]', params: { id: String(item.media.id), data: JSON.stringify(item.media) } })} style={styles.item}><Image source={{ uri: item.media.posterUrl }} style={styles.poster} /><View style={styles.itemCopy}><Text numberOfLines={1} style={styles.itemTitle}>{item.media.title}</Text><Text style={styles.itemMeta}>{statusText[item.status]}{item.progress ? ` · ${item.progress.watched}/${item.progress.total}` : ''}{next ? ` · Kaldığı yer S${next.season} B${next.episode}` : ''}</Text></View>{score ? <View style={styles.score}><Ionicons name="star" size={12} color={colors.warning} /><Text style={styles.scoreText}>{score}</Text></View> : null}</Pressable>; })}</View> : <Text style={styles.empty}>Henüz izleme aktivitesi yok.</Text>}</Section>
   </Screen>;

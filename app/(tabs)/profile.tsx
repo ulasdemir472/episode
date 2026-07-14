@@ -9,6 +9,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Screen } from '@/components/Screen';
 import { MediaCard } from '@/components/MediaCard';
 import { MotionPressable } from '@/components/MotionPressable';
+import { ProfileConnections } from '@/components/ProfileConnections';
+import { WatchLevelBadge } from '@/components/WatchLevelBadge';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { fetchFriendships } from '@/features/friends/friends-repository';
 import { uploadAvatar } from '@/features/profile/avatar-service';
@@ -28,8 +30,8 @@ export default function ProfileScreen() {
   const [username, setUsername] = useState(profile.username);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const isEnglish = profile.language === 'en';
-  const watchedMinutes = useWatchMinutes(library);
-  const watchedHours = formatWatchHours(watchedMinutes, profile.language);
+  const watchTime = useWatchMinutes(library);
+  const watchedHours = watchTime.isLoading ? '…' : formatWatchHours(watchTime.minutes, profile.language);
   const availableMedia = [...profile.favorites, ...library.map((item) => item.media)].filter((media, index, all) => all.findIndex((item) => item.id === media.id && item.type === media.type) === index);
   const initials = `${profile.firstName[0] ?? 'E'}${profile.lastName[0] ?? ''}`.toUpperCase();
 
@@ -83,6 +85,7 @@ export default function ProfileScreen() {
       <Text style={styles.name}>{profile.firstName || profile.lastName ? `${profile.firstName} ${profile.lastName}`.trim() : isEnglish ? 'Your profile' : 'Profilin'}</Text>
       <Text style={styles.stats}>{profile.username ? `@${profile.username} · ` : ''}{watchedHours} {isEnglish ? 'hours watched' : 'saat izlendi'} · {library.length} {isEnglish ? 'titles' : 'yapım'}</Text>
     </View>
+    <WatchLevelBadge minutes={watchTime.minutes} isLoading={watchTime.isLoading} language={profile.language} />
 
     <View style={styles.accountPanel}>
       <View style={styles.accountInfo}>
@@ -112,6 +115,7 @@ export default function ProfileScreen() {
     <ScrollFocusTarget active={params.tutorialTarget === 'friends'}>
       <FriendsPanel userId={auth.user?.id} isEnglish={isEnglish} />
     </ScrollFocusTarget>
+    {auth.user ? <ProfileConnections profileId={auth.user.id} currentUserId={auth.user.id} language={profile.language} /> : null}
 
     <View style={styles.sectionHeader}><Text style={styles.heading}>{isEnglish ? 'Profile cover' : 'Profil kapağı'}</Text>{profile.coverUrl ? <Pressable onPress={() => profile.setCover(undefined)} style={styles.removeCover}><Ionicons name="trash-outline" size={14} color={colors.primary} /><Text style={styles.removeCoverText}>{isEnglish ? 'Remove' : 'Kaldır'}</Text></Pressable> : <Text style={styles.caption}>{isEnglish ? 'Choose from your titles' : 'Yapımlarından seç'}</Text>}</View>
     {availableMedia.length > 0 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.coverChoices}>{availableMedia.map((media) => <Pressable key={`cover-${media.type}-${media.id}`} onPress={() => profile.setCover(media.backdropUrl || media.posterUrl)} style={[styles.coverChoice, profile.coverUrl === (media.backdropUrl || media.posterUrl) && styles.coverSelected]}><Image source={{ uri: media.backdropUrl || media.posterUrl }} style={styles.coverImage} /><Text numberOfLines={1} style={styles.coverTitle}>{media.title}</Text></Pressable>)}</ScrollView> : <Text style={styles.empty}>{isEnglish ? 'Add favorites or library titles to choose a cover.' : 'Kapak secmek icin favori veya listene yapim ekle.'}</Text>}

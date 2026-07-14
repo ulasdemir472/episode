@@ -47,8 +47,14 @@ export async function hydrateAndSyncUser(userId: string): Promise<void> {
   const error = profileResult.error ?? libraryResult.error ?? progressResult.error ?? favoritesResult.error;
   if (error) throw error;
 
+  const watchedByMedia = new Map<number, number>();
+  for (const episode of progressResult.data ?? []) watchedByMedia.set(episode.media_id, (watchedByMedia.get(episode.media_id) ?? 0) + 1);
   const remoteItems: LibraryItem[] = (libraryResult.data ?? []).flatMap((row) => {
-    const item: unknown = { media: row.media, status: row.status, progress: row.progress ?? undefined };
+    const storedProgress = row.progress && typeof row.progress === 'object' ? row.progress as LibraryItem['progress'] : undefined;
+    const mediaId = row.media && typeof row.media === 'object' && !Array.isArray(row.media) && typeof row.media.id === 'number' ? row.media.id : undefined;
+    const watched = mediaId === undefined ? 0 : watchedByMedia.get(mediaId) ?? storedProgress?.watched ?? 0;
+    const progress = watched > 0 ? { ...storedProgress, watched, total: Math.max(storedProgress?.total ?? 0, watched) } : storedProgress;
+    const item: unknown = { media: row.media, status: row.status, progress };
     return isLibraryItem(item) ? [item] : [];
   });
   const remoteWatched = Object.fromEntries((progressResult.data ?? []).map((row) => [`${row.media_id}:${row.season_number}:${row.episode_number}`, true])) as Record<string, true>;

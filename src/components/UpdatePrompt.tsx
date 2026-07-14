@@ -7,9 +7,10 @@ import { colors, radius, spacing } from '@/theme/tokens';
 
 const FOREGROUND_CHECK_INTERVAL_MS = 5 * 60_000;
 const UPDATE_RESTART_KEY = 'episode-update-restart-pending';
+const LAST_UPDATE_ID_KEY = 'episode-last-running-update-id';
 
 export function UpdatePrompt() {
-  const { isUpdateAvailable, isUpdatePending } = Updates.useUpdates();
+  const { currentlyRunning, isUpdateAvailable, isUpdatePending } = Updates.useUpdates();
   const [downloadedReady, setDownloadedReady] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [restarting, setRestarting] = useState(false);
@@ -17,13 +18,14 @@ export function UpdatePrompt() {
   const lastCheckAt = useRef(0);
 
   useEffect(() => {
-    if (__DEV__) return;
-    AsyncStorage.getItem(UPDATE_RESTART_KEY).then(async (pending) => {
-      if (!pending) return;
-      await AsyncStorage.removeItem(UPDATE_RESTART_KEY);
-      Alert.alert('Episode güncellendi', 'Yeni sürüm başarıyla yüklendi. Yenilikleri kullanmaya başlayabilirsin.');
+    const updateId = currentlyRunning.updateId;
+    if (__DEV__ || !updateId) return;
+    Promise.all([AsyncStorage.getItem(UPDATE_RESTART_KEY), AsyncStorage.getItem(LAST_UPDATE_ID_KEY)]).then(async ([restartPending, previousUpdateId]) => {
+      const silentlyApplied = !currentlyRunning.isEmbeddedLaunch && previousUpdateId !== updateId;
+      await AsyncStorage.multiSet([[LAST_UPDATE_ID_KEY, updateId], [UPDATE_RESTART_KEY, '']]);
+      if (restartPending || silentlyApplied) Alert.alert('Episode güncellendi', 'Yeni sürüm başarıyla yüklendi. Yenilikleri kullanmaya başlayabilirsin.');
     }).catch(() => undefined);
-  }, []);
+  }, [currentlyRunning.isEmbeddedLaunch, currentlyRunning.updateId]);
 
   const checkAndDownload = useCallback(async () => {
     if (__DEV__ || !Updates.isEnabled || checking.current || Date.now() - lastCheckAt.current < FOREGROUND_CHECK_INTERVAL_MS) return;

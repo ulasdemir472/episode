@@ -131,12 +131,20 @@ export async function fetchFriendActivity(currentUserId: string, friendId: strin
     client.from('library_items').select('media,status,progress').eq('user_id', friendId).order('updated_at', { ascending: false }).limit(100),
     client.from('favorites').select('media').eq('user_id', friendId).limit(50),
     client.from('ratings').select('target_key,score,updated_at').eq('user_id', friendId).order('updated_at', { ascending: false }).limit(100),
-    client.from('episode_progress').select('media_id').eq('user_id', friendId).eq('watched', true),
+    client.from('episode_progress').select('media_id,season_number,episode_number').eq('user_id', friendId).eq('watched', true),
   ]);
   const error = profileResult.error ?? libraryResult.error ?? favoritesResult.error ?? ratingsResult.error ?? progressResult.error;
   if (error) throw error;
   if (!profileResult.data) throw new Error('Profil bulunamadı.');
-  const library = (libraryResult.data ?? []).flatMap((row) => isMedia(row.media) ? [{ media: row.media, status: row.status, progress: row.progress && typeof row.progress === 'object' ? row.progress as LibraryItem['progress'] : undefined }] : []);
+  const watchedByMedia = new Map<number, number>();
+  for (const episode of progressResult.data ?? []) watchedByMedia.set(episode.media_id, (watchedByMedia.get(episode.media_id) ?? 0) + 1);
+  const library = (libraryResult.data ?? []).flatMap((row) => {
+    if (!isMedia(row.media)) return [];
+    const storedProgress = row.progress && typeof row.progress === 'object' ? row.progress as LibraryItem['progress'] : undefined;
+    const watched = watchedByMedia.get(row.media.id) ?? storedProgress?.watched ?? 0;
+    const progress = watched > 0 ? { ...storedProgress, watched, total: Math.max(storedProgress?.total ?? 0, watched) } : storedProgress;
+    return [{ media: row.media, status: row.status, progress }];
+  });
   return {
     profile: toPublicProfile(profileResult.data),
     library,
