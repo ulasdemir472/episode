@@ -7,15 +7,20 @@ export interface CommunityComment {
   targetKey: string;
   authorId?: string;
   author: string;
+  authorAvatarUrl?: string;
   text: string;
   createdAt: string;
+  parentCommentId?: string;
+  imageUrl?: string;
+  likeCount?: number;
+  likedByMe?: boolean;
 }
 
 type CommunityState = {
   comments: CommunityComment[];
   ratings: Record<string, number>;
   deletedCommentIds: string[];
-  addComment: (targetKey: string, authorId: string, author: string, text: string) => CommunityComment;
+  addComment: (targetKey: string, authorId: string, author: string, text: string, options?: { parentCommentId?: string; imageUrl?: string }) => CommunityComment;
   discardComment: (commentId: string) => void;
   removeComment: (commentId: string) => void;
   acknowledgeCommentDeletion: (commentId: string) => void;
@@ -31,8 +36,8 @@ const createUuid = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,
 
 export const useCommunityStore = create<CommunityState>()(persist((set) => ({
   comments: [], ratings: {}, deletedCommentIds: [],
-  addComment: (targetKey, authorId, author, text) => {
-    const comment = { id: createUuid(), targetKey, authorId, author: author.trim() || 'Episode User', text: text.trim(), createdAt: new Date().toISOString() };
+  addComment: (targetKey, authorId, author, text, options) => {
+    const comment = { id: createUuid(), targetKey, authorId, author: author.trim() || 'Episode User', text: text.trim(), createdAt: new Date().toISOString(), parentCommentId: options?.parentCommentId, imageUrl: options?.imageUrl, likeCount: 0, likedByMe: false };
     set((state) => ({ comments: [comment, ...state.comments] }));
     return comment;
   },

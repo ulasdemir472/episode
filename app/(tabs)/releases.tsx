@@ -8,6 +8,7 @@ import { catalogService } from '@/services/tmdb';
 import { enableNotifications, scheduleEpisodeReminder } from '@/services/notifications';
 import { useLibraryStore } from '@/store/library-store';
 import { colors, radius, spacing } from '@/theme/tokens';
+import { useAuth } from '@/features/auth/AuthProvider';
 
 function dateLabel(date: string) {
   const day = new Date(`${date}T12:00:00`);
@@ -20,6 +21,7 @@ function dateLabel(date: string) {
 }
 
 export default function ReleasesScreen() {
+  const auth = useAuth();
   const [now] = useState(() => Date.now());
   const items = useLibraryStore((state) => state.items);
   const watchedEpisodes = useLibraryStore((state) => state.watchedEpisodes);
@@ -37,7 +39,7 @@ export default function ReleasesScreen() {
   </Pressable>;
 
   return <Screen>
-    <View style={styles.header}><Text style={styles.kicker}>TAKVİMİN</Text><Text style={styles.title}>Yeni bölümler</Text><Text style={styles.subtitle}>İzlediğin dizilerin gerçek yayın takvimi.</Text><Pressable style={styles.notify} onPress={async () => { const enabled = await enableNotifications(); if (enabled) await Promise.all(upcoming.map((release) => { const planned = new Date(`${release.airDate}T12:00:00`); const reminder = planned.getTime() > Date.now() ? planned : new Date(Date.now() + 60_000); return scheduleEpisodeReminder(`${release.show.title} yayında`, `S${release.season} · B${release.episode} “${release.title}”`, reminder); })); Alert.alert(enabled ? 'Bildirimler hazır' : 'Bildirim izni gerekli', enabled ? `3 saniye içinde test bildirimi gelecek. ${upcoming.length} yaklaşan bölüm için de hatırlatıcı kuruldu.` : 'Ayarlar’dan Episode için bildirim iznini açmalısın.'); }}><Ionicons name="notifications-outline" size={18} color={colors.text} /><Text style={styles.notifyText}>Bildirimleri test et</Text></Pressable></View>
+    <View style={styles.header}><Text style={styles.kicker}>TAKVİMİN</Text><Text style={styles.title}>Yeni bölümler</Text><Text style={styles.subtitle}>İzlediğin dizilerin gerçek yayın takvimi.</Text><Pressable style={styles.notify} onPress={async () => { const enabled = await enableNotifications(auth.user?.id); if (enabled) await Promise.all(upcoming.map((release) => { const planned = new Date(`${release.airDate}T12:00:00`); const reminder = planned.getTime() > Date.now() ? planned : new Date(Date.now() + 60_000); return scheduleEpisodeReminder(`${release.show.title} yayında`, `S${release.season} · B${release.episode} “${release.title}”`, reminder); })); Alert.alert(enabled ? 'Bildirimler açıldı' : 'Bildirim izni gerekli', enabled ? `${upcoming.length} yaklaşan bölüm için hatırlatıcı kuruldu. Arkadaşlık istekleri ve yorum etkileşimleri de bildirilecek.` : 'Ayarlar’dan Episode için bildirim iznini açmalısın.'); }}><Ionicons name="notifications-outline" size={18} color={colors.text} /><Text style={styles.notifyText}>Bildirimleri aç</Text></Pressable></View>
     {followedShows.length === 0 ? <View style={styles.emptyBox}><Ionicons name="calendar-outline" size={34} color={colors.muted} /><Text style={styles.emptyTitle}>Takip edilen dizi yok</Text><Text style={styles.empty}>Bir dizinin bölümünü izledin olarak işaretlediğinde yayın takvimi burada görünür.</Text></View> : schedule.isLoading ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : schedule.isError ? <View style={styles.emptyBox}><Text style={styles.error}>Yayın takvimi alınamadı.</Text><Pressable onPress={() => schedule.refetch()}><Text style={styles.retry}>Tekrar dene</Text></Pressable></View> : visible.length === 0 ? <View style={styles.emptyBox}><Ionicons name="checkmark-circle-outline" size={36} color={colors.success} /><Text style={styles.emptyTitle}>Her şey güncel</Text><Text style={styles.empty}>Son 30 günde kaçırdığın veya planlanmış yeni bir bölüm yok.</Text></View> : <>
       {aired.length > 0 && <><View style={styles.dateRow}><Text style={styles.date}>İZLENECEKLER</Text><View style={styles.line} /></View>{aired.map((release) => renderRelease(release, false))}</>}
       {upcoming.length > 0 && <><View style={styles.dateRow}><Text style={styles.date}>YAKINDA</Text><View style={styles.line} /></View>{upcoming.map((release) => renderRelease(release, true))}</>}

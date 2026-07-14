@@ -1,4 +1,4 @@
-import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { EmailOtpType, Session, User } from '@supabase/supabase-js';
 import * as Linking from 'expo-linking';
 import { isSupabaseConfigured, supabase } from '@/infrastructure/supabase/client';
@@ -23,6 +23,7 @@ type AuthContextValue = {
   configured: boolean;
   syncStatus: 'idle' | 'syncing' | 'ready' | 'error';
   syncError?: string;
+  retrySync: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<AuthResult>;
   signUp: (email: string, password: string) => Promise<AuthResult>;
   signOut: () => Promise<AuthResult>;
@@ -45,6 +46,22 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const avatarUrl = useProfileStore((state) => state.avatarUrl);
   const coverUrl = useProfileStore((state) => state.coverUrl);
   const favorites = useProfileStore((state) => state.favorites);
+
+  const retrySync = useCallback(async () => {
+    const userId = session?.user.id;
+    if (!userId) return;
+    syncReady.current = false;
+    setSyncError(undefined);
+    setSyncStatus('syncing');
+    try {
+      await hydrateAndSyncUser(userId);
+      syncReady.current = true;
+      setSyncStatus('ready');
+    } catch (error: unknown) {
+      setSyncError(error instanceof Error ? error.message : 'Senkronizasyon başarısız.');
+      setSyncStatus('error');
+    }
+  }, [session?.user.id]);
 
   useEffect(() => {
     if (!supabase) {
@@ -130,6 +147,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     configured: isSupabaseConfigured,
     syncStatus,
     syncError,
+    retrySync,
     signIn: async (email, password) => {
       if (!supabase) return { error: 'Supabase bağlantısı yapılandırılmamış.' };
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
@@ -155,7 +173,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setSyncError(undefined);
       return {};
     },
-  }), [loading, session, syncError, syncStatus]);
+  }), [loading, retrySync, session, syncError, syncStatus]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

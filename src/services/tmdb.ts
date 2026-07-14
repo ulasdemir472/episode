@@ -10,6 +10,7 @@ const IMAGE_URL = 'https://image.tmdb.org/t/p';
 
 type TmdbResult = { id: number; media_type?: MediaType | 'person'; title?: string; name?: string; overview: string; poster_path?: string; backdrop_path?: string; release_date?: string; first_air_date?: string; vote_average: number; genre_ids?: number[] };
 type TmdbSeries = { episode_run_time?: number[]; seasons: { id: number; season_number: number; name: string; episode_count: number; air_date?: string; poster_path?: string }[] };
+type TmdbMovie = { runtime?: number };
 type TmdbSeason = { episodes: { id: number; episode_number: number; season_number: number; name: string; overview: string; air_date?: string; runtime?: number; still_path?: string; vote_average: number }[] };
 type TmdbScheduleEpisode = { id: number; season_number: number; episode_number: number; name: string; air_date: string };
 type TmdbSchedule = { last_episode_to_air?: TmdbScheduleEpisode | null; next_episode_to_air?: TmdbScheduleEpisode | null };
@@ -74,6 +75,14 @@ export function createCatalogService(cacheStore: CacheStore) {
     async seriesDetails(seriesId: number): Promise<SeriesDetails> {
       const data = await tmdb<TmdbSeries>(`/tv/${seriesId}?language=tr-TR`, cachePolicies.seriesDetails);
       return { episodeRunTime: data.episode_run_time?.[0], seasons: data.seasons.filter((season) => season.season_number > 0).map((season) => ({ id: season.id, number: season.season_number, name: season.name, episodeCount: season.episode_count, airDate: season.air_date, posterUrl: season.poster_path ? `${IMAGE_URL}/w500${season.poster_path}` : undefined })) };
+    },
+    async titleRuntimeMinutes(media: Media): Promise<number> {
+      if (media.type === 'tv') {
+        const data = await tmdb<TmdbSeries>(`/tv/${media.id}?language=tr-TR`, cachePolicies.seriesDetails);
+        return data.episode_run_time?.find((runtime) => runtime > 0) ?? 0;
+      }
+      const data = await tmdb<TmdbMovie>(`/movie/${media.id}?language=tr-TR`, cachePolicies.seriesDetails);
+      return data.runtime && data.runtime > 0 ? data.runtime : 0;
     },
     async seasonEpisodes(seriesId: number, season: number): Promise<EpisodeDetails[]> {
       const data = await tmdb<TmdbSeason>(`/tv/${seriesId}/season/${season}?language=tr-TR`, cachePolicies.seasonEpisodes);

@@ -19,7 +19,7 @@ type ProfileState = {
   setName: (firstName: string, lastName: string) => void;
   setAvatar: (avatarUrl?: string) => void;
   setLanguage: (language: AppLanguage) => void;
-  setCover: (coverUrl: string) => void;
+  setCover: (coverUrl?: string) => void;
   completeTutorial: () => void;
   toggleFavorite: (media: Media) => void;
   isFavorite: (mediaId: number) => boolean;
@@ -37,7 +37,7 @@ export const useProfileStore = create<ProfileState>()(persist((set, get) => ({
   setName: (firstName, lastName) => set({ firstName: firstName.trim(), lastName: lastName.trim() }),
   setAvatar: (avatarUrl) => set({ avatarUrl: avatarUrl?.trim() || undefined }),
   setLanguage: (language) => set({ language }),
-  setCover: (coverUrl) => set({ coverUrl }),
+  setCover: (coverUrl) => set({ coverUrl: coverUrl?.trim() || undefined }),
   completeTutorial: () => set({ hasSeenTutorial: true }),
   toggleFavorite: (media) => set((state) => ({ favorites: state.favorites.some((item) => item.id === media.id) ? state.favorites.filter((item) => item.id !== media.id) : [...state.favorites, media] })),
   isFavorite: (mediaId) => get().favorites.some((item) => item.id === mediaId),

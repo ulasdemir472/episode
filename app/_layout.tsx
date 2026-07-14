@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -8,6 +8,8 @@ import { colors } from '@/theme/tokens';
 import { shouldRetryExternalApiError } from '@/services/external-api-error';
 import { AuthProvider } from '@/features/auth/AuthProvider';
 import { AuthGate } from '@/features/onboarding/AuthGate';
+import { NotificationBridge } from '@/services/notifications';
+import { UpdatePrompt } from '@/components/UpdatePrompt';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,6 +27,6 @@ const queryClient = new QueryClient({
 Notifications.setNotificationHandler({ handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false }) });
 
 export default function RootLayout() {
-  useEffect(() => { Notifications.setBadgeCountAsync(0).catch(() => undefined); }, []);
-  return <SafeAreaProvider><QueryClientProvider client={queryClient}><AuthProvider><AuthGate><StatusBar style="light" /><Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background }, animation: 'fade' }}><Stack.Screen name="(tabs)" /><Stack.Screen name="media/[id]" options={{ presentation: 'card', animation: 'slide_from_right' }} /><Stack.Screen name="auth" options={{ animation: 'fade' }} /></Stack></AuthGate></AuthProvider></QueryClientProvider></SafeAreaProvider>;
+  useEffect(() => { Notifications.setBadgeCountAsync(0).catch(() => undefined); const subscription = Notifications.addNotificationResponseReceivedListener((response) => { const route = response.notification.request.content.data?.route; if (typeof route === 'string') router.push(route as never); }); return () => subscription.remove(); }, []);
+  return <SafeAreaProvider><QueryClientProvider client={queryClient}><AuthProvider><NotificationBridge /><UpdatePrompt /><AuthGate><StatusBar style="light" /><Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background }, animation: 'fade' }}><Stack.Screen name="(tabs)" /><Stack.Screen name="media/[id]" options={{ presentation: 'card', animation: 'slide_from_right' }} /><Stack.Screen name="profile/[id]" options={{ animation: 'slide_from_right' }} /><Stack.Screen name="friends" options={{ animation: 'slide_from_right' }} /><Stack.Screen name="auth" options={{ animation: 'fade' }} /></Stack></AuthGate></AuthProvider></QueryClientProvider></SafeAreaProvider>;
 }

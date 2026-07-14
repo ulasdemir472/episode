@@ -148,7 +148,7 @@ export async function persistCurrentUserState(userId: string): Promise<void> {
 
   const commentRows = community.comments.flatMap((comment) => {
     const target = parseReviewTarget(comment.targetKey);
-    return target && canPersistReviewTarget(comment.targetKey, library.items, library.watchedEpisodes) ? [{ id: uuidPattern.test(comment.id) ? comment.id : createUuid(), user_id: userId, target_key: target.targetKey, target_type: target.targetType, media_type: target.mediaType, media_id: target.mediaId, season_number: target.seasonNumber, episode_number: target.episodeNumber, body: comment.text }] : [];
+    return target && canPersistReviewTarget(comment.targetKey, library.items, library.watchedEpisodes) ? [{ id: uuidPattern.test(comment.id) ? comment.id : createUuid(), user_id: userId, target_key: target.targetKey, target_type: target.targetType, media_type: target.mediaType, media_id: target.mediaId, season_number: target.seasonNumber, episode_number: target.episodeNumber, body: comment.text, parent_comment_id: comment.parentCommentId ?? null, image_url: comment.imageUrl ?? null }] : [];
   });
   if (commentRows.length > 0) {
     const result = await client.from('comments').upsert(commentRows, { onConflict: 'id' });

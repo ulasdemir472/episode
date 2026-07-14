@@ -1,4 +1,5 @@
 import { requireSupabase } from '@/infrastructure/supabase/client';
+import { LibraryItem, Media } from '@/domain/media';
 
 export type PublicProfile = {
   id: string;
@@ -6,6 +7,7 @@ export type PublicProfile = {
   firstName: string;
   lastName: string;
   avatarUrl?: string;
+  coverUrl?: string;
 };
 
 export type FriendshipStatus = 'pending' | 'accepted' | 'declined';
@@ -25,6 +27,7 @@ type ProfileRow = {
   first_name: string;
   last_name: string;
   avatar_url: string | null;
+  cover_url?: string | null;
 };
 
 const toPublicProfile = (row: ProfileRow): PublicProfile => ({
@@ -33,6 +36,7 @@ const toPublicProfile = (row: ProfileRow): PublicProfile => ({
   firstName: row.first_name,
   lastName: row.last_name,
   avatarUrl: row.avatar_url ?? undefined,
+  coverUrl: row.cover_url ?? undefined,
 });
 
 export async function searchProfiles(query: string, currentUserId: string): Promise<PublicProfile[]> {
@@ -41,7 +45,7 @@ export async function searchProfiles(query: string, currentUserId: string): Prom
   const client = requireSupabase();
   const { data, error } = await client
     .from('profiles')
-    .select('id,username,first_name,last_name,avatar_url')
+    .select('id,username,first_name,last_name,avatar_url,cover_url')
     .neq('id', currentUserId)
     .or(`username.ilike.%${normalized}%,first_name.ilike.%${normalized}%,last_name.ilike.%${normalized}%`)
     .limit(12);
@@ -62,7 +66,7 @@ export async function fetchFriendships(currentUserId: string): Promise<Friendshi
   const rows = data ?? [];
   const profileIds = [...new Set(rows.map((row) => row.requester_id === currentUserId ? row.addressee_id : row.requester_id))];
   if (profileIds.length === 0) return [];
-  const profilesResult = await client.from('profiles').select('id,username,first_name,last_name,avatar_url').in('id', profileIds);
+  const profilesResult = await client.from('profiles').select('id,username,first_name,last_name,avatar_url,cover_url').in('id', profileIds);
   if (profilesResult.error) throw profilesResult.error;
   const profiles = new Map((profilesResult.data ?? []).map((profile) => [profile.id, toPublicProfile(profile)]));
 
@@ -102,4 +106,42 @@ export async function respondFriendRequest(friendshipId: string, status: 'accept
 export async function removeFriendship(friendshipId: string): Promise<void> {
   const { error } = await requireSupabase().from('friendships').delete().eq('id', friendshipId);
   if (error) throw error;
+}
+
+export type FriendActivity = {
+  profile: PublicProfile;
+  library: LibraryItem[];
+  favorites: Media[];
+  ratings: { targetKey: string; score: number; updatedAt: string }[];
+  watchedEpisodeCount: number;
+};
+
+function isMedia(value: unknown): value is Media {
+  const media = value as Partial<Media> | null;
+  return Boolean(media && typeof media.id === 'number' && (media.type === 'movie' || media.type === 'tv') && typeof media.title === 'string' && Array.isArray(media.genres));
+}
+
+export async function fetchFriendActivity(currentUserId: string, friendId: string): Promise<FriendActivity> {
+  const client = requireSupabase();
+  const friendship = await client.from('friendships').select('id').eq('status', 'accepted').or(`and(requester_id.eq.${currentUserId},addressee_id.eq.${friendId}),and(requester_id.eq.${friendId},addressee_id.eq.${currentUserId})`).maybeSingle();
+  if (friendship.error) throw friendship.error;
+  if (!friendship.data && currentUserId !== friendId) throw new Error('Bu profil yalnızca arkadaşlara açık.');
+  const [profileResult, libraryResult, favoritesResult, ratingsResult, progressResult] = await Promise.all([
+    client.from('profiles').select('id,username,first_name,last_name,avatar_url,cover_url').eq('id', friendId).single(),
+    client.from('library_items').select('media,status,progress').eq('user_id', friendId).order('updated_at', { ascending: false }).limit(100),
+    client.from('favorites').select('media').eq('user_id', friendId).limit(50),
+    client.from('ratings').select('target_key,score,updated_at').eq('user_id', friendId).order('updated_at', { ascending: false }).limit(100),
+    client.from('episode_progress').select('media_id').eq('user_id', friendId).eq('watched', true),
+  ]);
+  const error = profileResult.error ?? libraryResult.error ?? favoritesResult.error ?? ratingsResult.error ?? progressResult.error;
+  if (error) throw error;
+  if (!profileResult.data) throw new Error('Profil bulunamadı.');
+  const library = (libraryResult.data ?? []).flatMap((row) => isMedia(row.media) ? [{ media: row.media, status: row.status, progress: row.progress && typeof row.progress === 'object' ? row.progress as LibraryItem['progress'] : undefined }] : []);
+  return {
+    profile: toPublicProfile(profileResult.data),
+    library,
+    favorites: (favoritesResult.data ?? []).flatMap((row) => isMedia(row.media) ? [row.media] : []),
+    ratings: (ratingsResult.data ?? []).map((row) => ({ targetKey: row.target_key, score: row.score, updatedAt: row.updated_at })),
+    watchedEpisodeCount: progressResult.data?.length ?? 0,
+  };
 }

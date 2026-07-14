@@ -9,6 +9,11 @@ describe('community store deletion lifecycle', () => {
     expect(comment.id).toMatch(/^[0-9a-f-]{36}$/);
   });
 
+  it('keeps reply and image metadata for social comment synchronization', () => {
+    const comment = useCommunityStore.getState().addComment('media:movie:1', 'user-1', 'Ulaş', 'Yanıt', { parentCommentId: 'parent-1', imageUrl: 'https://example.com/photo.jpg' });
+    expect(comment).toMatchObject({ parentCommentId: 'parent-1', imageUrl: 'https://example.com/photo.jpg', likeCount: 0, likedByMe: false });
+  });
+
   it('records a deletion tombstone so a stale server snapshot cannot resurrect the comment', () => {
     const comment = useCommunityStore.getState().addComment('media:movie:1', 'user-1', 'Ulaş', 'Silinecek');
     useCommunityStore.getState().removeComment(comment.id);
