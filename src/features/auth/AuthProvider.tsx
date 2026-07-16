@@ -1,4 +1,5 @@
 import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import { EmailOtpType, Session, User } from '@supabase/supabase-js';
 import * as Linking from 'expo-linking';
 import { isSupabaseConfigured, supabase } from '@/infrastructure/supabase/client';
@@ -11,6 +12,8 @@ type AuthResult = { error?: string; needsEmailConfirmation?: boolean };
 
 const authRedirectUrl = 'episode://auth';
 const emailOtpTypes = new Set(['signup', 'email', 'magiclink', 'recovery', 'invite', 'email_change']);
+const syncRetryDelays = [2_000, 5_000, 15_000, 30_000, 60_000] as const;
+type SyncOperation = 'hydrate' | 'persist';
 
 function readAuthParam(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -37,6 +40,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [syncStatus, setSyncStatus] = useState<AuthContextValue['syncStatus']>('idle');
   const [syncError, setSyncError] = useState<string>();
   const syncReady = useRef(false);
+  const syncInFlight = useRef(false);
+  const syncRerunRequested = useRef(false);
+  const pendingSyncOperation = useRef<SyncOperation>('hydrate');
+  const syncRetryAttempt = useRef(0);
+  const syncRetryTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const runSyncRef = useRef<(operation?: SyncOperation) => Promise<void>>(async () => undefined);
   const libraryItems = useLibraryStore((state) => state.items);
   const watchedEpisodes = useLibraryStore((state) => state.watchedEpisodes);
   const firstName = useProfileStore((state) => state.firstName);
@@ -47,21 +56,48 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const coverUrl = useProfileStore((state) => state.coverUrl);
   const favorites = useProfileStore((state) => state.favorites);
 
-  const retrySync = useCallback(async () => {
+  const retrySync = useCallback(async (operation: SyncOperation = 'hydrate') => {
     const userId = session?.user.id;
     if (!userId) return;
-    syncReady.current = false;
+    pendingSyncOperation.current = operation;
+    if (syncInFlight.current) {
+      syncRerunRequested.current = true;
+      return;
+    }
+    if (syncRetryTimer.current) clearTimeout(syncRetryTimer.current);
+    syncRetryTimer.current = undefined;
+    syncInFlight.current = true;
+    if (operation === 'hydrate') syncReady.current = false;
     setSyncError(undefined);
-    setSyncStatus('syncing');
+    if (operation === 'hydrate') setSyncStatus('syncing');
     try {
-      await hydrateAndSyncUser(userId);
+      if (operation === 'hydrate') await hydrateAndSyncUser(userId);
+      else await persistCurrentUserState(userId);
       syncReady.current = true;
+      syncRetryAttempt.current = 0;
       setSyncStatus('ready');
     } catch (error: unknown) {
       setSyncError(error instanceof Error ? error.message : 'Senkronizasyon başarısız.');
       setSyncStatus('error');
+      const baseDelay = syncRetryDelays[Math.min(syncRetryAttempt.current, syncRetryDelays.length - 1)]!;
+      const delay = Math.round(baseDelay * (0.75 + Math.random() * 0.5));
+      syncRetryAttempt.current += 1;
+      syncRetryTimer.current = setTimeout(() => {
+        syncRetryTimer.current = undefined;
+        void runSyncRef.current(pendingSyncOperation.current);
+      }, delay);
+    } finally {
+      syncInFlight.current = false;
+      if (syncRerunRequested.current) {
+        syncRerunRequested.current = false;
+        void runSyncRef.current(pendingSyncOperation.current);
+      }
     }
   }, [session?.user.id]);
+
+  useEffect(() => {
+    runSyncRef.current = retrySync;
+  }, [retrySync]);
 
   useEffect(() => {
     if (!supabase) {
@@ -110,35 +146,34 @@ export function AuthProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     const userId = session?.user.id;
     syncReady.current = false;
+    syncRetryAttempt.current = 0;
+    if (syncRetryTimer.current) clearTimeout(syncRetryTimer.current);
+    syncRetryTimer.current = undefined;
     if (!userId) return;
-    let cancelled = false;
-    Promise.resolve().then(() => !cancelled && setSyncStatus('syncing'));
-    hydrateAndSyncUser(userId).then(() => {
-      if (!cancelled) {
-        syncReady.current = true;
-        setSyncError(undefined);
-        setSyncStatus('ready');
-      }
-    }).catch((error: unknown) => {
-      if (!cancelled) {
-        setSyncError(error instanceof Error ? error.message : 'Senkronizasyon başarısız.');
-        setSyncStatus('error');
-      }
-    });
-    return () => { cancelled = true; };
-  }, [session?.user.id]);
+    const initialSyncTimer = setTimeout(() => void retrySync('hydrate'), 0);
+    return () => {
+      clearTimeout(initialSyncTimer);
+      if (syncRetryTimer.current) clearTimeout(syncRetryTimer.current);
+      syncRetryTimer.current = undefined;
+    };
+  }, [retrySync, session?.user.id]);
 
   useEffect(() => {
     const userId = session?.user.id;
     if (!userId || !syncReady.current || syncStatus !== 'ready') return;
     const timeout = setTimeout(() => {
-      persistCurrentUserState(userId).catch((error: unknown) => {
-        setSyncError(error instanceof Error ? error.message : 'Senkronizasyon başarısız.');
-        setSyncStatus('error');
-      });
+      void retrySync('persist');
     }, 900);
     return () => clearTimeout(timeout);
-  }, [avatarUrl, coverUrl, favorites, firstName, language, lastName, libraryItems, session?.user.id, syncStatus, username, watchedEpisodes]);
+  }, [avatarUrl, coverUrl, favorites, firstName, language, lastName, libraryItems, retrySync, session?.user.id, syncStatus, username, watchedEpisodes]);
+
+  useEffect(() => {
+    if (!session?.user.id) return;
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void retrySync('hydrate');
+    });
+    return () => subscription.remove();
+  }, [retrySync, session?.user.id]);
 
   const value = useMemo<AuthContextValue>(() => ({
     session,
@@ -147,7 +182,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     configured: isSupabaseConfigured,
     syncStatus,
     syncError,
-    retrySync,
+    retrySync: () => retrySync('hydrate'),
     signIn: async (email, password) => {
       if (!supabase) return { error: 'Supabase bağlantısı yapılandırılmamış.' };
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });

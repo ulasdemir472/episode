@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -50,6 +50,7 @@ export default function MediaDetailScreen() {
   const remove = useLibraryStore((state) => state.remove);
   const toggleEpisode = useLibraryStore((state) => state.toggleEpisode);
   const markThrough = useLibraryStore((state) => state.markThrough);
+  const recordEpisodeRuntimes = useLibraryStore((state) => state.recordEpisodeRuntimes);
   const favorites = useProfileStore((state) => state.favorites);
   const toggleFavorite = useProfileStore((state) => state.toggleFavorite);
   const saved = media ? items.some((item) => item.media.id === media.id) : false;
@@ -79,6 +80,14 @@ export default function MediaDetailScreen() {
     staleTime: 24 * 60 * 60_000,
   });
 
+  useEffect(() => {
+    if (!media || media.type !== 'tv') return;
+    const runtimes = Object.fromEntries((episodesQuery.data ?? []).flatMap((episode) => episode.runtime && episode.runtime > 0
+      ? [[`${media.id}:${episode.seasonNumber}:${episode.number}`, episode.runtime]]
+      : []));
+    recordEpisodeRuntimes(media.id, runtimes, seriesQuery.data?.episodeRunTime);
+  }, [episodesQuery.data, media, recordEpisodeRuntimes, seriesQuery.data?.episodeRunTime, watchedEpisodes]);
+
   if (!media) return null;
   const requireUser = () => {
     if (auth.user) return true;
@@ -101,7 +110,7 @@ export default function MediaDetailScreen() {
     if (!lastSeason) return;
     Alert.alert('Dizinin tümünü izledin mi?', `${media.title} dizisinin ${totalEpisodes} bölümünün tamamı izlendi olarak işaretlenecek.`, [
       { text: 'İptal', style: 'cancel' },
-      { text: 'Tümünü izledim', onPress: () => markThrough(media, lastSeason.number, lastSeason.episodeCount, seasons) },
+      { text: 'Tümünü izledim', onPress: () => markThrough(media, lastSeason.number, lastSeason.episodeCount, seasons, seriesQuery.data?.episodeRunTime) },
     ]);
   };
   const watchedCount = episodesQuery.data?.filter((episode) => watchedEpisodes[`${media.id}:${episode.seasonNumber}:${episode.number}`]).length ?? 0;
@@ -110,8 +119,9 @@ export default function MediaDetailScreen() {
   const handleEpisodePress = (episodeSeason: number, episodeNumber: number) => {
     if (!requireUser()) return;
     const key = `${media.id}:${episodeSeason}:${episodeNumber}`;
+    const runtimeMinutes = episodesQuery.data?.find((episode) => episode.seasonNumber === episodeSeason && episode.number === episodeNumber)?.runtime ?? seriesQuery.data?.episodeRunTime;
     if (watchedEpisodes[key]) {
-      toggleEpisode(media, episodeSeason, episodeNumber, seasons);
+      toggleEpisode(media, episodeSeason, episodeNumber, seasons, runtimeMinutes);
       return;
     }
     let missingBefore = 0;
@@ -123,13 +133,13 @@ export default function MediaDetailScreen() {
       }
     }
     if (missingBefore === 0) {
-      toggleEpisode(media, episodeSeason, episodeNumber, seasons);
+      toggleEpisode(media, episodeSeason, episodeNumber, seasons, runtimeMinutes);
       return;
     }
     Alert.alert('Önceki bölümler izlenmemiş', `Bu bölümden önce izlenmemiş ${missingBefore} bölüm var. Buraya kadar hepsini izlendi olarak işaretleyelim mi?`, [
       { text: 'İptal', style: 'cancel' },
-      { text: 'Sadece bu bölüm', onPress: () => toggleEpisode(media, episodeSeason, episodeNumber, seasons) },
-      { text: 'Buraya kadar hepsi', onPress: () => markThrough(media, episodeSeason, episodeNumber, seasons) },
+      { text: 'Sadece bu bölüm', onPress: () => toggleEpisode(media, episodeSeason, episodeNumber, seasons, runtimeMinutes) },
+      { text: 'Buraya kadar hepsi', onPress: () => markThrough(media, episodeSeason, episodeNumber, seasons, seriesQuery.data?.episodeRunTime) },
     ]);
   };
 

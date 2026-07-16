@@ -9,7 +9,7 @@ const seasons: SeasonSummary[] = [
 ];
 
 describe('library business rules', () => {
-  beforeEach(() => useLibraryStore.setState({ items: [], watchedEpisodes: {} }));
+  beforeEach(() => useLibraryStore.setState({ items: [], watchedEpisodes: {}, episodeRuntimes: {} }));
 
   it('adds and removes a movie from the library', () => {
     useLibraryStore.getState().upsert(movie, 'watchlist');
@@ -39,5 +39,43 @@ describe('library business rules', () => {
     useLibraryStore.getState().markThrough(show, 2, 2, seasons);
     useLibraryStore.getState().toggleEpisode(show, 1, 2, seasons);
     expect(useLibraryStore.getState().items[0]).toMatchObject({ status: 'watching', progress: { watched: 4, nextEpisode: { season: 1, episode: 2 } } });
+  });
+
+  it('moves the most recently updated show to the front', () => {
+    const otherShow = { ...show, id: 21, title: 'Other Show' };
+    useLibraryStore.getState().toggleEpisode(show, 1, 1, seasons);
+    useLibraryStore.getState().toggleEpisode(otherShow, 1, 1, seasons);
+    useLibraryStore.getState().toggleEpisode(show, 1, 2, seasons);
+    expect(useLibraryStore.getState().items.map((item) => item.media.id)).toEqual([20, 21]);
+  });
+
+  it('reopens a completed show when a new episode has aired', () => {
+    useLibraryStore.getState().markThrough(show, 2, 2, seasons);
+    useLibraryStore.getState().reopenForEpisode(show, 3, 1);
+    expect(useLibraryStore.getState().items[0]).toMatchObject({
+      status: 'watching',
+      progress: { watched: 5, total: 6, nextEpisode: { season: 3, episode: 1 } },
+    });
+  });
+
+  it('stores the runtime when an episode is marked watched', () => {
+    useLibraryStore.getState().toggleEpisode(show, 1, 1, seasons, 23);
+    expect(useLibraryStore.getState().episodeRuntimes['20:1:1']).toBe(23);
+    expect(useLibraryStore.getState().items[0]?.progress?.runtimeMinutes).toBe(23);
+  });
+
+  it('backfills a series runtime and replaces it with an exact episode runtime', () => {
+    useLibraryStore.getState().markThrough(show, 1, 2, seasons);
+    useLibraryStore.getState().recordEpisodeRuntimes(show.id, {}, 25);
+    expect(useLibraryStore.getState().episodeRuntimes).toMatchObject({ '20:1:1': 25, '20:1:2': 25 });
+    useLibraryStore.getState().recordEpisodeRuntimes(show.id, { '20:1:2': 31 }, 25);
+    expect(useLibraryStore.getState().episodeRuntimes['20:1:2']).toBe(31);
+  });
+
+  it('uses stored season metadata to advance from the continue button', () => {
+    useLibraryStore.getState().toggleEpisode(show, 1, 1, seasons, 24);
+    expect(useLibraryStore.getState().items[0]?.progress?.nextEpisode).toEqual({ season: 1, episode: 2 });
+    useLibraryStore.getState().toggleEpisode(show, 1, 2, [], 24);
+    expect(useLibraryStore.getState().items[0]?.progress?.nextEpisode).toEqual({ season: 1, episode: 3 });
   });
 });

@@ -25,12 +25,13 @@ export default function ProfileScreen() {
   const auth = useAuth();
   const params = useLocalSearchParams<{ tutorialTarget?: string }>();
   const library = useLibraryStore((state) => state.items);
+  const episodeRuntimes = useLibraryStore((state) => state.episodeRuntimes);
   const [firstName, setFirstName] = useState(profile.firstName);
   const [lastName, setLastName] = useState(profile.lastName);
   const [username, setUsername] = useState(profile.username);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const isEnglish = profile.language === 'en';
-  const watchTime = useWatchMinutes(library);
+  const watchTime = useWatchMinutes(library, episodeRuntimes);
   const watchedHours = watchTime.isLoading ? '…' : formatWatchHours(watchTime.minutes, profile.language);
   const availableMedia = [...profile.favorites, ...library.map((item) => item.media)].filter((media, index, all) => all.findIndex((item) => item.id === media.id && item.type === media.type) === index);
   const initials = `${profile.firstName[0] ?? 'E'}${profile.lastName[0] ?? ''}`.toUpperCase();
@@ -93,8 +94,7 @@ export default function ProfileScreen() {
         <View style={styles.accountCopy}>
           <Text style={styles.accountTitle}>{auth.user ? (isEnglish ? 'Account connected' : 'Hesap bagli') : (isEnglish ? 'Local profile' : 'Yerel profil')}</Text>
           <Text style={styles.accountDetail}>{auth.user?.email ?? (isEnglish ? 'Sign in to sync across devices.' : 'Cihazlar arasi senkronizasyon icin giris yap.')}</Text>
-          {auth.user && <Text style={[styles.syncStatus, auth.syncStatus === 'error' && styles.syncError]}>{auth.syncStatus === 'syncing' ? (isEnglish ? 'Syncing...' : 'Senkronize ediliyor...') : auth.syncStatus === 'error' ? (auth.syncError ?? (isEnglish ? 'Sync failed' : 'Senkronizasyon basarisiz')) : (isEnglish ? 'Synced' : 'Senkronize')}</Text>}
-          {auth.user && auth.syncStatus === 'error' ? <Pressable onPress={() => void auth.retrySync()} style={styles.retrySync}><Text style={styles.retrySyncText}>{isEnglish ? 'Try again' : 'Tekrar dene'}</Text></Pressable> : null}
+          {auth.user && <Text style={[styles.syncStatus, auth.syncStatus === 'error' && styles.syncError]}>{auth.syncStatus === 'syncing' ? (isEnglish ? 'Syncing...' : 'Senkronize ediliyor...') : auth.syncStatus === 'error' ? (isEnglish ? 'Connection interrupted. Retrying automatically...' : 'Baglanti kesildi. Otomatik tekrar deneniyor...') : (isEnglish ? 'Synced automatically' : 'Otomatik senkronize')}</Text>}
         </View>
       </View>
       {auth.user ? <MotionPressable onPress={() => auth.signOut()} style={styles.accountAction}><Text style={styles.accountActionText}>{isEnglish ? 'Sign out' : 'Cikis yap'}</Text></MotionPressable> : <MotionPressable onPress={() => router.push('/auth' as Href)} style={[styles.accountAction, styles.accountActionPrimary]}><Text style={styles.accountActionPrimaryText}>{isEnglish ? 'Sign in' : 'Giris yap'}</Text></MotionPressable>}

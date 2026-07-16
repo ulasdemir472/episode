@@ -41,7 +41,7 @@ export async function hydrateAndSyncUser(userId: string): Promise<void> {
   const [profileResult, libraryResult, progressResult, favoritesResult] = await Promise.all([
     client.from('profiles').select('username,first_name,last_name,language,avatar_url,cover_url').eq('id', userId).maybeSingle(),
     client.from('library_items').select('media,status,progress').eq('user_id', userId),
-    client.from('episode_progress').select('media_id,season_number,episode_number').eq('user_id', userId).eq('watched', true),
+    client.from('episode_progress').select('media_id,season_number,episode_number,runtime_minutes').eq('user_id', userId).eq('watched', true),
     client.from('favorites').select('media').eq('user_id', userId),
   ]);
   const error = profileResult.error ?? libraryResult.error ?? progressResult.error ?? favoritesResult.error;
@@ -58,7 +58,8 @@ export async function hydrateAndSyncUser(userId: string): Promise<void> {
     return isLibraryItem(item) ? [item] : [];
   });
   const remoteWatched = Object.fromEntries((progressResult.data ?? []).map((row) => [`${row.media_id}:${row.season_number}:${row.episode_number}`, true])) as Record<string, true>;
-  useLibraryStore.getState().mergeRemote(remoteItems, remoteWatched);
+  const remoteRuntimes = Object.fromEntries((progressResult.data ?? []).flatMap((row) => row.runtime_minutes ? [[`${row.media_id}:${row.season_number}:${row.episode_number}`, row.runtime_minutes]] : []));
+  useLibraryStore.getState().mergeRemote(remoteItems, remoteWatched, remoteRuntimes);
 
   const remoteFavorites: Media[] = (favoritesResult.data ?? []).flatMap((row) => isMedia(row.media) ? [row.media] : []);
   const remoteProfile = profileResult.data;
@@ -107,7 +108,7 @@ export async function persistCurrentUserState(userId: string): Promise<void> {
 
   const progressRows = Object.keys(library.watchedEpisodes).map((key) => {
     const [mediaId, seasonNumber, episodeNumber] = key.split(':').map(Number);
-    return { user_id: userId, media_id: mediaId!, season_number: seasonNumber!, episode_number: episodeNumber!, watched: true, watched_at: new Date().toISOString() };
+    return { user_id: userId, media_id: mediaId!, season_number: seasonNumber!, episode_number: episodeNumber!, watched: true, runtime_minutes: library.episodeRuntimes[key] ?? null, watched_at: new Date().toISOString() };
   });
   if (progressRows.length > 0) {
     const result = await client.from('episode_progress').upsert(progressRows, { onConflict: 'user_id,media_id,season_number,episode_number' });

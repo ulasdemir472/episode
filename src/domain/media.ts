@@ -16,7 +16,7 @@ export interface Media {
 export interface LibraryItem {
   media: Media;
   status: LibraryStatus;
-  progress?: { watched: number; total: number; nextEpisode?: { season: number; episode: number } };
+  progress?: { watched: number; total: number; nextEpisode?: { season: number; episode: number }; updatedAt?: string; runtimeMinutes?: number; seasons?: { number: number; episodeCount: number }[] };
 }
 
 export interface EpisodeRelease {
