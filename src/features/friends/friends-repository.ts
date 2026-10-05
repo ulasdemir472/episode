@@ -146,6 +146,24 @@ export type ProfileActivity = {
   createdAt: string;
 };
 
+const PROGRESS_PAGE_SIZE = 1000;
+
+async function fetchAllProfileProgress(friendId: string) {
+  const client = requireSupabase();
+  const rows: { media_id: number; season_number: number; episode_number: number; runtime_minutes: number | null }[] = [];
+  for (let from = 0; ; from += PROGRESS_PAGE_SIZE) {
+    const result = await client.from('episode_progress')
+      .select('media_id,season_number,episode_number,runtime_minutes')
+      .eq('user_id', friendId).eq('watched', true)
+      .order('media_id').order('season_number').order('episode_number')
+      .range(from, from + PROGRESS_PAGE_SIZE - 1);
+    if (result.error) throw result.error;
+    const page = result.data ?? [];
+    rows.push(...page);
+    if (page.length < PROGRESS_PAGE_SIZE) return rows;
+  }
+}
+
 function isMedia(value: unknown): value is Media {
   const media = value as Partial<Media> | null;
   return Boolean(media && typeof media.id === 'number' && (media.type === 'movie' || media.type === 'tv') && typeof media.title === 'string' && Array.isArray(media.genres));
@@ -159,13 +177,13 @@ export async function fetchFriendActivity(_currentUserId: string, friendId: stri
     client.from('favorites').select('media').eq('user_id', friendId).limit(50),
     client.from('ratings').select('target_key,score,updated_at').eq('user_id', friendId).order('updated_at', { ascending: false }).limit(500),
     client.from('comments').select('id,target_key,body,created_at').eq('user_id', friendId).is('deleted_at', null).eq('moderation_status', 'visible').order('created_at', { ascending: false }).limit(500),
-    client.from('episode_progress').select('media_id,season_number,episode_number,runtime_minutes').eq('user_id', friendId).eq('watched', true),
+    fetchAllProfileProgress(friendId),
   ]);
-  const error = profileResult.error ?? libraryResult.error ?? favoritesResult.error ?? ratingsResult.error ?? commentsResult.error ?? progressResult.error;
+  const error = profileResult.error ?? libraryResult.error ?? favoritesResult.error ?? ratingsResult.error ?? commentsResult.error;
   if (error) throw error;
   if (!profileResult.data) throw new Error('Profil bulunamadı.');
   const watchedByMedia = new Map<number, number>();
-  for (const episode of progressResult.data ?? []) watchedByMedia.set(episode.media_id, (watchedByMedia.get(episode.media_id) ?? 0) + 1);
+  for (const episode of progressResult) watchedByMedia.set(episode.media_id, (watchedByMedia.get(episode.media_id) ?? 0) + 1);
   const library = (libraryResult.data ?? []).flatMap((row) => {
     if (!isMedia(row.media)) return [];
     const storedProgress = row.progress && typeof row.progress === 'object' ? row.progress as LibraryItem['progress'] : undefined;
@@ -190,7 +208,7 @@ export async function fetchFriendActivity(_currentUserId: string, friendId: stri
     favorites,
     ratings,
     activities,
-    watchedEpisodeCount: progressResult.data?.length ?? 0,
-    episodeRuntimes: Object.fromEntries((progressResult.data ?? []).flatMap((row) => row.runtime_minutes ? [[`${row.media_id}:${row.season_number}:${row.episode_number}`, row.runtime_minutes]] : [])),
+    watchedEpisodeCount: progressResult.length,
+    episodeRuntimes: Object.fromEntries(progressResult.flatMap((row) => row.runtime_minutes ? [[`${row.media_id}:${row.season_number}:${row.episode_number}`, row.runtime_minutes]] : [])),
   };
 }

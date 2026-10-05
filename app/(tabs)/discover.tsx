@@ -22,12 +22,18 @@ const typeFilters: { value: TypeFilter; tr: string; en: string; icon: keyof type
 
 const genres: Genre[] = [
   { tr: 'Aksiyon', en: 'Action', movie: 28, tv: 10759 },
+  { tr: 'Macera', en: 'Adventure', movie: 12, tv: 10759 },
   { tr: 'Komedi', en: 'Comedy', movie: 35, tv: 35 },
   { tr: 'Drama', en: 'Drama', movie: 18, tv: 18 },
   { tr: 'Animasyon', en: 'Animation', movie: 16, tv: 16 },
   { tr: 'Suç', en: 'Crime', movie: 80, tv: 80 },
+  { tr: 'Gizem', en: 'Mystery', movie: 9648, tv: 9648 },
+  { tr: 'Romantik', en: 'Romance', movie: 10749, tv: 10749 },
+  { tr: 'Korku', en: 'Horror', movie: 27, tv: 9648 },
+  { tr: 'Aile', en: 'Family', movie: 10751, tv: 10751 },
   { tr: 'Belgesel', en: 'Documentary', movie: 99, tv: 99 },
   { tr: 'Bilim Kurgu', en: 'Sci-Fi', movie: 878, tv: 10765 },
+  { tr: 'Fantastik', en: 'Fantasy', movie: 14, tv: 10765 },
 ];
 
 export default function DiscoverScreen() {
@@ -43,7 +49,7 @@ export default function DiscoverScreen() {
   const genreId = type === 'movie' ? genre?.movie : type === 'tv' ? genre?.tv : undefined;
   const discovery = useQuery({
     queryKey: ['discover', type, genreId],
-    queryFn: () => catalogService.discover(type as MediaType, genreId),
+    queryFn: () => catalogService.discover(type as MediaType, genreId, 3),
     enabled: !searching && type !== 'all',
   });
   const activeQuery = searching ? search : type === 'all' ? trending : discovery;

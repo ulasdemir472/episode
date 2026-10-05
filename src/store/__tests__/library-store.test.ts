@@ -72,6 +72,13 @@ describe('library business rules', () => {
     expect(useLibraryStore.getState().episodeRuntimes['20:1:2']).toBe(31);
   });
 
+  it('does not publish another store update when episode runtimes are already current', () => {
+    useLibraryStore.getState().toggleEpisode(show, 1, 1, seasons, 25);
+    const previousState = useLibraryStore.getState();
+    useLibraryStore.getState().recordEpisodeRuntimes(show.id, { '20:1:1': 25 }, 25);
+    expect(useLibraryStore.getState()).toBe(previousState);
+  });
+
   it('uses stored season metadata to advance from the continue button', () => {
     useLibraryStore.getState().toggleEpisode(show, 1, 1, seasons, 24);
     expect(useLibraryStore.getState().items[0]?.progress?.nextEpisode).toEqual({ season: 1, episode: 2 });

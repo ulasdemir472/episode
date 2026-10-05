@@ -1,5 +1,5 @@
 import { LibraryItem, Media } from '@/domain/media';
-import { calculateWatchMinutes, formatWatchHours } from '../watch-time';
+import { calculateViewingInsights, calculateWatchMinutes, formatWatchHours } from '../watch-time';
 
 const show: Media = { id: 1, type: 'tv', title: 'Show', overview: '', posterUrl: '', backdropUrl: '', year: '2026', rating: 8, genres: [] };
 const movie: Media = { ...show, id: 2, type: 'movie', title: 'Movie' };
@@ -18,5 +18,13 @@ describe('watch time calculation', () => {
 
   it('formats the calculated minutes as hours', () => {
     expect(formatWatchHours(90, 'en')).toBe('1.5');
+  });
+
+  it('derives favorite genre, top show and viewing balance', () => {
+    const library: LibraryItem[] = [
+      { media: { ...show, genres: ['Drama'] }, status: 'watching', progress: { watched: 20, total: 30 } },
+      { media: { ...movie, genres: ['Comedy'] }, status: 'completed' },
+    ];
+    expect(calculateViewingInsights(library)).toMatchObject({ favoriteGenre: 'Drama', topTitle: 'Show', topTitleEpisodes: 20, dominantType: 'tv', dominantPercent: 89 });
   });
 });

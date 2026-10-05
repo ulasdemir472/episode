@@ -18,14 +18,10 @@ export async function fetchWatchWheels(userId: string): Promise<WatchWheel[]> {
 
 export async function createWatchWheel(ownerId: string, memberIds: string[]): Promise<string> {
   const client = requireSupabase();
-  const created = await client.from('watch_wheels').insert({ owner_id: ownerId }).select('id').single();
-  if (created.error) throw created.error;
   const invited = [...new Set(memberIds)].filter((id) => id !== ownerId);
-  if (invited.length) {
-    const members = await client.from('watch_wheel_members').insert(invited.map((userId) => ({ wheel_id: created.data.id, user_id: userId })));
-    if (members.error) throw members.error;
-  }
-  return created.data.id;
+  const created = await client.rpc('create_watch_wheel', { invited_user_ids: invited });
+  if (created.error) throw created.error;
+  return created.data;
 }
 
 export async function fetchWheelEntries(wheelId: string): Promise<WatchWheelEntry[]> {

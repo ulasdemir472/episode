@@ -64,6 +64,17 @@ alter table public.watch_wheels enable row level security;
 alter table public.watch_wheel_members enable row level security;
 alter table public.watch_wheel_entries enable row level security;
 
+drop policy if exists watch_wheels_read_member on public.watch_wheels;
+drop policy if exists watch_wheels_insert_owner on public.watch_wheels;
+drop policy if exists watch_wheels_update_member on public.watch_wheels;
+drop policy if exists watch_wheels_delete_owner on public.watch_wheels;
+drop policy if exists watch_wheel_members_read on public.watch_wheel_members;
+drop policy if exists watch_wheel_members_insert_owner on public.watch_wheel_members;
+drop policy if exists watch_wheel_members_delete on public.watch_wheel_members;
+drop policy if exists watch_wheel_entries_read on public.watch_wheel_entries;
+drop policy if exists watch_wheel_entries_insert on public.watch_wheel_entries;
+drop policy if exists watch_wheel_entries_delete on public.watch_wheel_entries;
+
 create policy watch_wheels_read_member on public.watch_wheels for select to authenticated using (public.is_watch_wheel_member(id, auth.uid()));
 create policy watch_wheels_insert_owner on public.watch_wheels for insert to authenticated with check (owner_id = auth.uid());
 create policy watch_wheels_update_member on public.watch_wheels for update to authenticated using (public.is_watch_wheel_member(id, auth.uid())) with check (public.is_watch_wheel_member(id, auth.uid()));

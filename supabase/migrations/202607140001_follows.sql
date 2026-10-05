@@ -1,24 +1,7 @@
 begin;
 
-create table if not exists public.follows (
-  follower_id uuid not null references auth.users(id) on delete cascade,
-  following_id uuid not null references auth.users(id) on delete cascade,
-  created_at timestamptz not null default now(),
-  primary key (follower_id, following_id),
-  check (follower_id <> following_id)
-);
-
-create index if not exists follows_following_created_idx on public.follows(following_id, created_at desc);
-create index if not exists follows_follower_created_idx on public.follows(follower_id, created_at desc);
-
-alter table public.follows enable row level security;
-
-drop policy if exists follows_read on public.follows;
-drop policy if exists follows_insert_own on public.follows;
-drop policy if exists follows_delete_own on public.follows;
-
-create policy follows_read on public.follows for select using (true);
-create policy follows_insert_own on public.follows for insert with check (auth.uid() = follower_id);
-create policy follows_delete_own on public.follows for delete using (auth.uid() = follower_id);
+-- Takipçi/takip edilen görünümü artık kabul edilmiş arkadaşlıklardan türetiliyor.
+-- Uzak projeye hiç uygulanmamış eski follows tablosunu oluşturup bir sonraki
+-- migration'da silmek yerine bu migration bilinçli olarak veri değiştirmez.
 
 commit;

@@ -95,7 +95,7 @@ export const useLibraryStore = create<LibraryState>()(persist((set, get) => ({
       episodeRuntimes[key] = runtime;
       changed = true;
     }
-    const items = state.items.map((item) => item.media.id === mediaId && item.progress && fallbackRuntime
+    const items = state.items.map((item) => item.media.id === mediaId && item.progress && fallbackRuntime && item.progress.runtimeMinutes !== fallbackRuntime
       ? { ...item, progress: { ...item.progress, runtimeMinutes: fallbackRuntime } }
       : item);
     return changed || items.some((item, index) => item !== state.items[index]) ? { episodeRuntimes, items } : state;

@@ -28,8 +28,19 @@ export async function notificationsAreEnabled(): Promise<boolean> {
   return (await Notifications.getPermissionsAsync()).granted;
 }
 
-export async function scheduleEpisodeReminder(title: string, body: string, date: Date) {
-  return Notifications.scheduleNotificationAsync({ content: { title, body, sound: 'default', data: { route: '/releases' } }, trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date } });
+let reminderQueue: Promise<void> = Promise.resolve();
+
+export function scheduleEpisodeReminder(episodeId: string, title: string, body: string, date: Date) {
+  const task = reminderQueue.then(async () => {
+    const reminderKey = `episode:${episodeId}`;
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    const duplicates = scheduled.filter((notification) => notification.content.data?.reminderKey === reminderKey
+      || (notification.content.data?.route === '/releases' && notification.content.title === title && notification.content.body === body));
+    await Promise.all(duplicates.map((notification) => Notifications.cancelScheduledNotificationAsync(notification.identifier)));
+    return Notifications.scheduleNotificationAsync({ content: { title, body, sound: 'default', data: { route: '/releases', reminderKey } }, trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date } });
+  });
+  reminderQueue = task.then(() => undefined, () => undefined);
+  return task;
 }
 
 export function NotificationBridge() {

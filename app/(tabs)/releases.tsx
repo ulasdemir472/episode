@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, AppState, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -37,6 +37,16 @@ function AnimatedEpisodeCheck({ label, onConfirm }: { label: string; onConfirm: 
     <Ionicons name="checkmark" size={20} color={colors.muted} />
     <Animated.View style={[styles.episodeCheckFill, { opacity: progress, transform: [{ scale }] }]}><Ionicons name="checkmark" size={20} color="#fff" /></Animated.View>
   </MotionPressable>;
+}
+
+function AnimatedContinueCard({ children }: { children: ReactNode }) {
+  const [entrance] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    Animated.spring(entrance, { toValue: 1, speed: 18, bounciness: 5, useNativeDriver: true }).start();
+  }, [entrance]);
+  const translateX = entrance.interpolate({ inputRange: [0, 1], outputRange: [34, 0] });
+  const scale = entrance.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] });
+  return <Animated.View style={[styles.item, { opacity: entrance, transform: [{ translateX }, { scale }] }]}>{children}</Animated.View>;
 }
 
 export default function ReleasesScreen() {
@@ -79,7 +89,7 @@ export default function ReleasesScreen() {
     if (enabled) await Promise.all(upcoming.map((release) => {
       const planned = new Date(`${release.airDate}T12:00:00`);
       const reminder = planned.getTime() > Date.now() ? planned : new Date(Date.now() + 60_000);
-      return scheduleEpisodeReminder(`${release.show.title} yayında`, `S${release.season} · B${release.episode} “${release.title}”`, reminder);
+      return scheduleEpisodeReminder(release.id, `${release.show.title} yayında`, `S${release.season} · B${release.episode} “${release.title}”`, reminder);
     }));
     Alert.alert(enabled ? 'Bildirimler açık' : 'Bildirim izni gerekli', enabled ? `${upcoming.length} yaklaşan bölüm için hatırlatıcılar güncellendi. Arkadaşlık istekleri ve yorum etkileşimleri de bildirilecek.` : 'Ayarlar’dan Episode için bildirim iznini açmalısın.');
   };
@@ -117,11 +127,13 @@ export default function ReleasesScreen() {
   const renderContinue = (item: (typeof continuingItems)[number]) => {
     const next = item.progress!.nextEpisode!;
     const episodeId = `${item.media.id}:${next.season}:${next.episode}`;
-    return <View key={`${item.media.type}-${item.media.id}`} style={styles.item}>
-      <Image source={{ uri: item.media.posterUrl }} style={styles.poster} />
-      <View style={styles.info}><Text style={styles.show}>{item.media.title}</Text><Text style={styles.episode}>Kaldığın yer · S{next.season} · B{next.episode}</Text><Text style={styles.continue}>İzlemeye devam et</Text></View>
+    return <AnimatedContinueCard key={episodeId}>
+      <Pressable accessibilityLabel={`${item.media.title} ayrıntılarını aç`} onPress={() => router.push({ pathname: '/media/[id]', params: { id: String(item.media.id), data: JSON.stringify(item.media) } })} style={styles.episodeLink}>
+        <Image source={{ uri: item.media.posterUrl }} style={styles.poster} />
+        <View style={styles.info}><Text style={styles.show}>{item.media.title}</Text><Text style={styles.episode}>Kaldığın yer · S{next.season} · B{next.episode}</Text><Text style={styles.continue}>Ayrıntıya git</Text></View>
+      </Pressable>
       <AnimatedEpisodeCheck key={episodeId} label={`${item.media.title} S${next.season} B${next.episode} izlendi işaretle`} onConfirm={() => markContinueWatched(item)} />
-    </View>;
+    </AnimatedContinueCard>;
   };
 
   return <Screen>
@@ -136,6 +148,6 @@ export default function ReleasesScreen() {
 
 const styles = StyleSheet.create({
   header: { padding: spacing.lg }, kicker: { color: colors.primary, fontSize: 10, letterSpacing: 1.7, fontWeight: '800' }, title: { color: colors.text, fontSize: 34, fontWeight: '900', letterSpacing: -1, marginTop: 4 }, subtitle: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: spacing.sm }, notify: { alignSelf: 'flex-start', marginTop: spacing.lg, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, paddingHorizontal: 15, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }, notifyEnabled: { borderColor: 'rgba(101,214,166,.35)', backgroundColor: 'rgba(101,214,166,.08)' }, notifyText: { color: colors.text, fontWeight: '700', fontSize: 12 }, notifyTextEnabled: { color: colors.success },
-  dateRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginHorizontal: spacing.lg, marginVertical: spacing.md }, date: { color: colors.primary, fontSize: 10, fontWeight: '900', letterSpacing: 1.4 }, line: { height: 1, backgroundColor: colors.border, flex: 1 }, item: { marginHorizontal: spacing.lg, marginBottom: spacing.md, flexDirection: 'row', alignItems: 'center', padding: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border }, poster: { width: 58, height: 82, borderRadius: radius.sm }, info: { flex: 1, paddingHorizontal: spacing.md }, show: { color: colors.text, fontWeight: '800', fontSize: 15 }, episode: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 5 }, continue: { color: colors.success, fontSize: 10, fontWeight: '700', marginTop: 6 }, episodeCheck: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, episodeCheckFill: { position: 'absolute', inset: 0, borderRadius: 19, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center' }, time: { color: colors.success, fontSize: 10, fontWeight: '700', marginTop: 6 }, upcoming: { color: colors.warning }, check: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  dateRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginHorizontal: spacing.lg, marginVertical: spacing.md }, date: { color: colors.primary, fontSize: 10, fontWeight: '900', letterSpacing: 1.4 }, line: { height: 1, backgroundColor: colors.border, flex: 1 }, item: { marginHorizontal: spacing.lg, marginBottom: spacing.md, flexDirection: 'row', alignItems: 'center', padding: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border }, episodeLink: { flex: 1, flexDirection: 'row', alignItems: 'center' }, poster: { width: 58, height: 82, borderRadius: radius.sm }, info: { flex: 1, paddingHorizontal: spacing.md }, show: { color: colors.text, fontWeight: '800', fontSize: 15 }, episode: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 5 }, continue: { color: colors.success, fontSize: 10, fontWeight: '700', marginTop: 6 }, episodeCheck: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, episodeCheckFill: { position: 'absolute', inset: 0, borderRadius: 19, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center' }, time: { color: colors.success, fontSize: 10, fontWeight: '700', marginTop: 6 }, upcoming: { color: colors.warning }, check: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   loader: { marginTop: 80 }, emptyBox: { alignItems: 'center', paddingHorizontal: spacing.xl, marginTop: 70 }, emptyTitle: { color: colors.text, fontSize: 18, fontWeight: '800', marginTop: spacing.md }, empty: { color: colors.muted, lineHeight: 20, textAlign: 'center', marginTop: spacing.sm }, error: { color: colors.primary, fontWeight: '700' }, retry: { color: colors.text, fontWeight: '800', marginTop: spacing.md },
 });

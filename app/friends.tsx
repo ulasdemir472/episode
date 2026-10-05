@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { Alert, FlatList, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import type { Href } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MotionPressable } from '@/components/MotionPressable';
 import { useAuth } from '@/features/auth/AuthProvider';
-import { fetchFriendships, Friendship, PublicProfile, removeFriendship, respondFriendRequest, searchProfiles, sendFriendRequest } from '@/features/friends/friends-repository';
+import { fetchAcceptedFriendProfiles, fetchFriendships, Friendship, PublicProfile, removeFriendship, respondFriendRequest, searchProfiles, sendFriendRequest } from '@/features/friends/friends-repository';
 import { colors, radius, spacing } from '@/theme/tokens';
 
 type Row = { kind: 'header'; id: string; title: string } | { kind: 'friend'; id: string; friendship: Friendship } | { kind: 'empty'; id: string; text: string };
@@ -14,10 +14,14 @@ type Row = { kind: 'header'; id: string; title: string } | { kind: 'friend'; id:
 export default function FriendsScreen() {
   const auth = useAuth();
   const userId = auth.user?.id;
+  const params = useLocalSearchParams<{ profileId?: string; profileName?: string }>();
+  const viewedProfileId = typeof params.profileId === 'string' ? params.profileId : undefined;
+  const viewingOtherProfile = Boolean(viewedProfileId && viewedProfileId !== userId);
   const [search, setSearch] = useState('');
   const queryClient = useQueryClient();
-  const friendships = useQuery({ queryKey: ['friends', userId], queryFn: () => fetchFriendships(userId!), enabled: Boolean(userId), staleTime: 10_000 });
-  const found = useQuery({ queryKey: ['profile-search', userId, search], queryFn: () => searchProfiles(search, userId!), enabled: Boolean(userId && search.trim().length >= 2), staleTime: 5_000 });
+  const friendships = useQuery({ queryKey: ['friends', userId], queryFn: () => fetchFriendships(userId!), enabled: Boolean(userId && !viewingOtherProfile), staleTime: 10_000 });
+  const publicFriends = useQuery({ queryKey: ['friend-connections', viewedProfileId], queryFn: () => fetchAcceptedFriendProfiles(viewedProfileId!), enabled: Boolean(userId && viewingOtherProfile), staleTime: 15_000 });
+  const found = useQuery({ queryKey: ['profile-search', userId, search], queryFn: () => searchProfiles(search, userId!), enabled: Boolean(userId && !viewingOtherProfile && search.trim().length >= 2), staleTime: 5_000 });
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['friends', userId] });
   const send = useMutation({ mutationFn: (target: string) => sendFriendRequest(userId!, target), onSuccess: refresh, onError: () => Alert.alert('İstek gönderilemedi', 'Daha sonra tekrar dene.') });
   const respond = useMutation({ mutationFn: ({ id, status }: { id: string; status: 'accepted' | 'declined' }) => respondFriendRequest(id, status), onSuccess: refresh });
@@ -35,6 +39,12 @@ export default function FriendsScreen() {
 
   if (!userId) return <View style={styles.root}><Header /><View style={styles.center}><Text style={styles.empty}>Arkadaşlarını görmek için giriş yapmalısın.</Text><MotionPressable onPress={() => router.push('/auth' as Href)} style={styles.primary}><Text style={styles.primaryText}>Giriş yap</Text></MotionPressable></View></View>;
 
+  if (viewingOtherProfile) return <View style={styles.root}>
+    <Header title="Arkadaşlar" />
+    <View style={styles.publicIntro}><Text style={styles.publicName}>{params.profileName ?? 'Bu profil'}</Text><Text style={styles.publicDetail}>{publicFriends.isLoading ? 'Arkadaşları yükleniyor…' : `${publicFriends.data?.length ?? 0} arkadaş`}</Text></View>
+    {publicFriends.isError ? <Text style={styles.error}>Arkadaş listesi yüklenemedi.</Text> : <FlatList data={publicFriends.data ?? []} keyExtractor={(profile) => profile.id} contentContainerStyle={styles.list} ListEmptyComponent={publicFriends.isLoading ? null : <Text style={styles.emptyRow}>Henüz arkadaşı yok.</Text>} renderItem={({ item }) => <ProfileRow profile={item} onPress={() => router.push(`/profile/${item.id}` as Href)} action={<Ionicons name="chevron-forward" size={18} color={colors.muted} />} />} />}
+  </View>;
+
   return <View style={styles.root}>
     <Header />
     <View style={styles.searchWrap}><Ionicons name="search" size={18} color={colors.muted} /><TextInput value={search} onChangeText={setSearch} autoCapitalize="none" placeholder="Kullanıcı adı veya isim ara" placeholderTextColor={colors.muted} style={styles.search} /></View>
@@ -50,7 +60,7 @@ export default function FriendsScreen() {
 }
 
 function section(title: string, key: string, rows: Friendship[], empty: string): Row[] { const emptyRow: Row = { kind: 'empty', id: `e-${key}`, text: empty }; return [{ kind: 'header', id: `h-${key}`, title }, ...(rows.length ? rows.map((friendship): Row => ({ kind: 'friend', id: friendship.id, friendship })) : [emptyRow])]; }
-function Header() { return <View style={styles.header}><Pressable onPress={() => router.back()} style={styles.back}><Ionicons name="chevron-back" size={22} color={colors.text} /></Pressable><View><Text style={styles.kicker}>SOSYAL</Text><Text style={styles.title}>Arkadaşlar</Text></View></View>; }
+function Header({ title = 'Arkadaşlar' }: { title?: string }) { return <View style={styles.header}><Pressable onPress={() => router.back()} style={styles.back}><Ionicons name="chevron-back" size={22} color={colors.text} /></Pressable><View><Text style={styles.kicker}>SOSYAL</Text><Text style={styles.title}>{title}</Text></View></View>; }
 function FriendRow({ row, onRespond, onRemove }: { row: Friendship; onRespond: (status: 'accepted' | 'declined') => void; onRemove: () => void }) {
   const action = row.direction === 'incoming' ? <View style={styles.actions}><MotionPressable onPress={() => onRespond('accepted')} style={styles.primarySmall}><Text style={styles.primarySmallText}>Kabul</Text></MotionPressable><MotionPressable onPress={() => onRespond('declined')} style={styles.ghost}><Text style={styles.ghostText}>Reddet</Text></MotionPressable></View> : row.direction === 'outgoing' ? <MotionPressable onPress={onRemove} style={styles.ghost}><Text style={styles.ghostText}>İptal</Text></MotionPressable> : <View style={styles.actions}><Ionicons name="chevron-forward" size={18} color={colors.muted} /><MotionPressable onPress={onRemove} style={styles.remove}><Ionicons name="person-remove-outline" size={15} color={colors.primary} /></MotionPressable></View>;
   return <ProfileRow profile={row.profile} onPress={row.direction === 'friend' ? () => router.push(`/profile/${row.profile.id}` as Href) : undefined} action={action} />;
@@ -61,6 +71,7 @@ function ProfileRow({ profile, action, onPress }: { profile: PublicProfile; acti
 }
 
 const styles = StyleSheet.create({
+  publicIntro: { marginHorizontal: spacing.lg, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border }, publicName: { color: colors.text, fontSize: 15, fontWeight: '900' }, publicDetail: { color: colors.muted, fontSize: 11, marginTop: 4 },
   root: { flex: 1, backgroundColor: colors.background, paddingTop: 54 }, header: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingBottom: spacing.md }, back: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }, kicker: { color: colors.primary, fontSize: 9, letterSpacing: 1.5, fontWeight: '900' }, title: { color: colors.text, fontSize: 28, fontWeight: '900' }, searchWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: spacing.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: spacing.md }, search: { flex: 1, height: 48, color: colors.text, paddingHorizontal: spacing.sm }, results: { margin: spacing.lg, marginBottom: 0, padding: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.md }, list: { paddingHorizontal: spacing.lg, paddingBottom: 50 }, section: { color: colors.primary, fontSize: 10, fontWeight: '900', letterSpacing: 1.2, marginTop: spacing.lg, marginBottom: spacing.sm }, row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 66, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border }, person: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm }, avatar: { width: 44, height: 44, borderRadius: 22 }, avatarFallback: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.elevated, alignItems: 'center', justifyContent: 'center' }, initials: { color: colors.text, fontWeight: '900' }, copy: { flex: 1 }, name: { color: colors.text, fontSize: 13, fontWeight: '800' }, username: { color: colors.muted, fontSize: 10, marginTop: 3 }, actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm }, primarySmall: { backgroundColor: colors.primary, paddingHorizontal: 13, paddingVertical: 8, borderRadius: radius.pill }, primarySmallText: { color: '#fff', fontSize: 10, fontWeight: '900' }, ghost: { borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.pill }, ghostText: { color: colors.muted, fontSize: 10, fontWeight: '800' }, remove: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,90,71,.1)', alignItems: 'center', justifyContent: 'center' }, empty: { color: colors.muted, fontSize: 12 }, emptyRow: { color: colors.muted, fontSize: 11, paddingVertical: spacing.md }, error: { color: colors.primary, margin: spacing.lg }, center: { alignItems: 'center', marginTop: 100, gap: spacing.lg }, primary: { backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 20, paddingVertical: 12 }, primaryText: { color: '#fff', fontWeight: '900' },
   relationBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: radius.pill, backgroundColor: 'rgba(101,214,166,.1)' }, relationText: { color: colors.success, fontSize: 9, fontWeight: '800' },
 });

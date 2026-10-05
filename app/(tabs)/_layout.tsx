@@ -9,7 +9,7 @@ const icons = { index: ['home-outline', 'home'], discover: ['search-outline', 's
 
 export default function TabLayout() {
   const en = useProfileStore((state) => state.language) === 'en';
-  return <Tabs detachInactiveScreens={false} screenOptions={({ route }) => ({ headerShown: false, animation: 'none', freezeOnBlur: false, sceneStyle: styles.scene, tabBarActiveTintColor: colors.primary, tabBarInactiveTintColor: colors.muted, tabBarStyle: styles.tab, tabBarBackground: () => <BlurView intensity={75} tint="dark" style={StyleSheet.absoluteFill} />, tabBarIcon: ({ color, focused, size }) => <Ionicons name={icons[route.name as keyof typeof icons]?.[focused ? 1 : 0] ?? 'ellipse'} size={size} color={color} />, tabBarLabelStyle: styles.label })}>
+  return <Tabs detachInactiveScreens={false} screenOptions={({ route }) => ({ headerShown: false, animation: 'fade', freezeOnBlur: false, sceneStyle: styles.scene, tabBarActiveTintColor: colors.primary, tabBarInactiveTintColor: colors.muted, tabBarStyle: styles.tab, tabBarBackground: () => <BlurView intensity={75} tint="dark" style={StyleSheet.absoluteFill} />, tabBarIcon: ({ color, focused, size }) => <Ionicons name={icons[route.name as keyof typeof icons]?.[focused ? 1 : 0] ?? 'ellipse'} size={size} color={color} />, tabBarLabelStyle: styles.label })}>
     <Tabs.Screen name="index" options={{ title: en ? 'Home' : 'Ana Sayfa' }} />
     <Tabs.Screen name="discover" options={{ title: en ? 'Discover' : 'Keşfet' }} />
     <Tabs.Screen name="releases" options={{ title: en ? 'Episodes' : 'Bölümler' }} />

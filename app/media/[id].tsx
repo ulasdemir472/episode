@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,6 +14,7 @@ import { useLibraryStore } from '@/store/library-store';
 import { useProfileStore } from '@/store/profile-store';
 import { colors, radius, spacing } from '@/theme/tokens';
 import { MotionPressable } from '@/components/MotionPressable';
+import { MediaCard } from '@/components/MediaCard';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { ScrollFocusTarget } from '@/features/onboarding/ScrollFocusTarget';
 
@@ -37,6 +38,31 @@ function parseMedia(data?: string): Media | undefined {
     return undefined;
   }
 }
+
+const EpisodeRow = memo(function EpisodeRow({ episode, imdb, watched, onToggle }: {
+  episode: EpisodeDetails;
+  imdb?: string;
+  watched: boolean;
+  onToggle: (season: number, episode: number) => void;
+}) {
+  return <View style={[styles.episode, watched && styles.episodeWatched]}>
+    {episode.stillUrl ? <Image source={{ uri: episode.stillUrl }} style={styles.still} /> : <View style={[styles.still, styles.stillFallback]}><Ionicons name="film-outline" size={24} color={colors.muted} /></View>}
+    <View style={styles.episodeInfo}><Text style={styles.episodeNo}>BÖLÜM {episode.number}</Text><Text style={styles.episodeTitle} numberOfLines={2}>{episode.title}</Text><View style={styles.episodeMeta}><Text style={styles.episodeMetaText}>{episode.runtime ? `${episode.runtime} dk` : episode.airDate?.slice(0, 4)}</Text><Ionicons name="star" color={colors.warning} size={11} /><Text style={styles.episodeMetaText}>{episode.tmdbRating} TMDB</Text>{imdb && <Text style={styles.miniImdb}>IMDb {imdb}</Text>}</View></View>
+    <Pressable
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: watched }}
+      accessibilityLabel={`${episode.number}. bölümü izlendi işaretle`}
+      hitSlop={8}
+      onPress={() => {
+        void Haptics.selectionAsync();
+        onToggle(episode.seasonNumber, episode.number);
+      }}
+      style={[styles.check, watched && styles.checkActive]}
+    >
+      <Ionicons name="checkmark" size={20} color={watched ? '#fff' : colors.muted} />
+    </Pressable>
+  </View>;
+});
 
 export default function MediaDetailScreen() {
   const params = useLocalSearchParams<{ data?: string; tutorialTarget?: string }>();
@@ -79,6 +105,14 @@ export default function MediaDetailScreen() {
     enabled: Boolean(media && activeSeason && episodesQuery.data?.length),
     staleTime: 24 * 60 * 60_000,
   });
+  const recommendationsQuery = useQuery({
+    queryKey: ['recommendations', media?.type, media?.id],
+    queryFn: () => catalogService.recommendations(media!),
+    enabled: Boolean(media),
+    staleTime: 6 * 60 * 60_000,
+  });
+  const seasons = useMemo(() => seriesQuery.data?.seasons ?? [], [seriesQuery.data?.seasons]);
+  const totalEpisodes = seasons.reduce((sum, item) => sum + item.episodeCount, 0);
 
   useEffect(() => {
     if (!media || media.type !== 'tv') return;
@@ -87,6 +121,38 @@ export default function MediaDetailScreen() {
       : []));
     recordEpisodeRuntimes(media.id, runtimes, seriesQuery.data?.episodeRunTime);
   }, [episodesQuery.data, media, recordEpisodeRuntimes, seriesQuery.data?.episodeRunTime, watchedEpisodes]);
+
+  const handleEpisodePress = useCallback((episodeSeason: number, episodeNumber: number) => {
+    if (!media) return;
+    if (!auth.user) {
+      router.push('/auth' as Href);
+      return;
+    }
+    const currentWatchedEpisodes = useLibraryStore.getState().watchedEpisodes;
+    const key = `${media.id}:${episodeSeason}:${episodeNumber}`;
+    const runtimeMinutes = episodesQuery.data?.find((episode) => episode.seasonNumber === episodeSeason && episode.number === episodeNumber)?.runtime ?? seriesQuery.data?.episodeRunTime;
+    if (currentWatchedEpisodes[key]) {
+      toggleEpisode(media, episodeSeason, episodeNumber, seasons, runtimeMinutes);
+      return;
+    }
+    let missingBefore = 0;
+    for (const item of seasons) {
+      if (item.number > episodeSeason) continue;
+      const last = item.number === episodeSeason ? episodeNumber - 1 : item.episodeCount;
+      for (let number = 1; number <= last; number += 1) {
+        if (!currentWatchedEpisodes[`${media.id}:${item.number}:${number}`]) missingBefore += 1;
+      }
+    }
+    if (missingBefore === 0) {
+      toggleEpisode(media, episodeSeason, episodeNumber, seasons, runtimeMinutes);
+      return;
+    }
+    Alert.alert('Önceki bölümler izlenmemiş', `Bu bölümden önce izlenmemiş ${missingBefore} bölüm var. Buraya kadar hepsini izlendi olarak işaretleyelim mi?`, [
+      { text: 'İptal', style: 'cancel' },
+      { text: 'Sadece bu bölüm', onPress: () => toggleEpisode(media, episodeSeason, episodeNumber, seasons, runtimeMinutes) },
+      { text: 'Buraya kadar hepsi', onPress: () => markThrough(media, episodeSeason, episodeNumber, seasons, seriesQuery.data?.episodeRunTime) },
+    ]);
+  }, [auth.user, episodesQuery.data, markThrough, media, seasons, seriesQuery.data?.episodeRunTime, toggleEpisode]);
 
   if (!media) return null;
   const requireUser = () => {
@@ -114,34 +180,6 @@ export default function MediaDetailScreen() {
     ]);
   };
   const watchedCount = episodesQuery.data?.filter((episode) => watchedEpisodes[`${media.id}:${episode.seasonNumber}:${episode.number}`]).length ?? 0;
-  const seasons = seriesQuery.data?.seasons ?? [];
-  const totalEpisodes = seasons.reduce((sum, item) => sum + item.episodeCount, 0);
-  const handleEpisodePress = (episodeSeason: number, episodeNumber: number) => {
-    if (!requireUser()) return;
-    const key = `${media.id}:${episodeSeason}:${episodeNumber}`;
-    const runtimeMinutes = episodesQuery.data?.find((episode) => episode.seasonNumber === episodeSeason && episode.number === episodeNumber)?.runtime ?? seriesQuery.data?.episodeRunTime;
-    if (watchedEpisodes[key]) {
-      toggleEpisode(media, episodeSeason, episodeNumber, seasons, runtimeMinutes);
-      return;
-    }
-    let missingBefore = 0;
-    for (const item of seasons) {
-      if (item.number > episodeSeason) continue;
-      const last = item.number === episodeSeason ? episodeNumber - 1 : item.episodeCount;
-      for (let number = 1; number <= last; number += 1) {
-        if (!watchedEpisodes[`${media.id}:${item.number}:${number}`]) missingBefore += 1;
-      }
-    }
-    if (missingBefore === 0) {
-      toggleEpisode(media, episodeSeason, episodeNumber, seasons, runtimeMinutes);
-      return;
-    }
-    Alert.alert('Önceki bölümler izlenmemiş', `Bu bölümden önce izlenmemiş ${missingBefore} bölüm var. Buraya kadar hepsini izlendi olarak işaretleyelim mi?`, [
-      { text: 'İptal', style: 'cancel' },
-      { text: 'Sadece bu bölüm', onPress: () => toggleEpisode(media, episodeSeason, episodeNumber, seasons, runtimeMinutes) },
-      { text: 'Buraya kadar hepsi', onPress: () => markThrough(media, episodeSeason, episodeNumber, seasons, seriesQuery.data?.episodeRunTime) },
-    ]);
-  };
 
   return <Screen>
     <ImageBackground source={{ uri: media.backdropUrl }} style={styles.hero}>
@@ -174,11 +212,7 @@ export default function MediaDetailScreen() {
             const key = `${media.id}:${episode.seasonNumber}:${episode.number}`;
             const watched = Boolean(watchedEpisodes[key]);
             const imdb = imdbEpisodesQuery.data?.[episode.number];
-            return <View key={episode.id} style={[styles.episode, watched && styles.episodeWatched]}>
-              {episode.stillUrl ? <Image source={{ uri: episode.stillUrl }} style={styles.still} /> : <View style={[styles.still, styles.stillFallback]}><Ionicons name="film-outline" size={24} color={colors.muted} /></View>}
-              <View style={styles.episodeInfo}><Text style={styles.episodeNo}>BÖLÜM {episode.number}</Text><Text style={styles.episodeTitle} numberOfLines={2}>{episode.title}</Text><View style={styles.episodeMeta}><Text style={styles.episodeMetaText}>{episode.runtime ? `${episode.runtime} dk` : episode.airDate?.slice(0, 4)}</Text><Ionicons name="star" color={colors.warning} size={11} /><Text style={styles.episodeMetaText}>{episode.tmdbRating} TMDB</Text>{imdb && <Text style={styles.miniImdb}>IMDb {imdb}</Text>}</View></View>
-              <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: watched }} accessibilityLabel={`${episode.number}. bölümü izlendi işaretle`} onPress={() => { Haptics.selectionAsync(); handleEpisodePress(episode.seasonNumber, episode.number); }} style={[styles.check, watched && styles.checkActive]}><Ionicons name="checkmark" size={20} color={watched ? '#fff' : colors.muted} /></Pressable>
-            </View>;
+            return <EpisodeRow key={episode.id} episode={episode} imdb={imdb} watched={watched} onToggle={handleEpisodePress} />;
           })}</View>}
         {!!episodesQuery.data?.length && <View style={styles.discussionPicker}>
           <Text style={styles.discussionLabel}>Bölüm yorumu seç</Text>
@@ -191,11 +225,20 @@ export default function MediaDetailScreen() {
       <ScrollFocusTarget active={params.tutorialTarget === 'comments'}>
         <CommunityPanel targetKey={`media:${media.type}:${media.id}`} canReview={media.type === 'movie' ? currentStatus === 'completed' : currentStatus === 'completed' || hasWatchedEpisode} />
       </ScrollFocusTarget>
+      {!!recommendationsQuery.data?.length && <View style={styles.similar}>
+        <View style={styles.rule} />
+        <Text style={styles.section}>Buna benzer yapımlar</Text>
+        <Text style={styles.similarSubtitle}>{media.title} hoşuna gittiyse bunlara da göz at.</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.similarList}>
+          {recommendationsQuery.data.map((item) => <MediaCard key={`${item.type}-${item.id}`} media={item} width={138} />)}
+        </ScrollView>
+      </View>}
     </View>
   </Screen>;
 }
 
 const styles = StyleSheet.create({
+  similar: { marginTop: spacing.lg }, similarSubtitle: { color: colors.muted, fontSize: 12, marginTop: 5 }, similarList: { paddingTop: spacing.lg, paddingRight: spacing.sm },
   hero: { height: 330 }, back: { position: 'absolute', top: spacing.md, left: spacing.md, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,.45)', alignItems: 'center', justifyContent: 'center' }, favorite: { position: 'absolute', top: spacing.md, right: spacing.md, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,.45)', alignItems: 'center', justifyContent: 'center' },
   body: { paddingHorizontal: spacing.lg, marginTop: -45 }, type: { color: colors.primary, fontSize: 10, fontWeight: '900', letterSpacing: 1.5 }, title: { color: colors.text, fontSize: 38, lineHeight: 42, fontWeight: '900', letterSpacing: -1.3, marginTop: spacing.sm },
   meta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md }, score: { flexDirection: 'row', alignItems: 'center', gap: 5 }, rating: { color: colors.text, fontWeight: '800', fontSize: 12 }, imdbBadge: { flexDirection: 'row', borderRadius: 5, overflow: 'hidden' }, imdbLabel: { backgroundColor: '#F5C518', color: '#000', fontSize: 11, fontWeight: '900', paddingHorizontal: 6, paddingVertical: 3 }, imdbValue: { backgroundColor: colors.elevated, color: colors.text, fontSize: 11, fontWeight: '800', paddingHorizontal: 7, paddingVertical: 3 },

@@ -7,6 +7,7 @@ const day = 24 * hour;
 export const cachePolicies = {
   trending: { ttlMs: 30 * minute, staleIfErrorMs: day },
   discover: { ttlMs: hour, staleIfErrorMs: 3 * day },
+  recommendations: { ttlMs: 6 * hour, staleIfErrorMs: 7 * day },
   search: { ttlMs: day, staleIfErrorMs: 7 * day },
   seriesDetails: { ttlMs: day, staleIfErrorMs: 7 * day },
   seasonEpisodes: { ttlMs: 12 * hour, staleIfErrorMs: 7 * day },

@@ -67,10 +67,14 @@ export function createCatalogService(cacheStore: CacheStore) {
       const body = await tmdb<{ results: TmdbResult[] }>(`/search/multi?language=tr-TR&query=${encodeURIComponent(query.trim())}`, cachePolicies.search);
       return body.results.filter((item) => item.media_type !== 'person').map((item) => mapMedia(item));
     },
-    async discover(type: MediaType, genreId?: number): Promise<Media[]> {
+    async discover(type: MediaType, genreId?: number, pageCount = 3): Promise<Media[]> {
       const genre = genreId ? `&with_genres=${genreId}` : '';
-      const body = await tmdb<{ results: TmdbResult[] }>(`/discover/${type}?language=tr-TR&sort_by=popularity.desc${genre}`, cachePolicies.discover);
-      return body.results.map((item) => mapMedia(item, type));
+      const pages = await Promise.all(Array.from({ length: pageCount }, (_, index) => tmdb<{ results: TmdbResult[] }>(`/discover/${type}?language=tr-TR&sort_by=popularity.desc&page=${index + 1}${genre}`, cachePolicies.discover)));
+      return pages.flatMap((page) => page.results).filter((item, index, all) => all.findIndex((candidate) => candidate.id === item.id) === index).map((item) => mapMedia(item, type));
+    },
+    async recommendations(media: Media): Promise<Media[]> {
+      const body = await tmdb<{ results: TmdbResult[] }>(`/${media.type}/${media.id}/recommendations?language=tr-TR&page=1`, cachePolicies.recommendations);
+      return body.results.filter((item) => item.id !== media.id).map((item) => mapMedia(item, media.type));
     },
     async seriesDetails(seriesId: number): Promise<SeriesDetails> {
       const data = await tmdb<TmdbSeries>(`/tv/${seriesId}?language=tr-TR`, cachePolicies.seriesDetails);

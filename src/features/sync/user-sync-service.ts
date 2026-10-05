@@ -7,6 +7,8 @@ import { useLibraryStore } from '@/store/library-store';
 import { useProfileStore } from '@/store/profile-store';
 
 const mediaKey = (media: Media) => `${media.type}:${media.id}`;
+const PAGE_SIZE = 1000;
+const WRITE_BATCH_SIZE = 500;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const createUuid = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
   const random = Math.floor(Math.random() * 16);
@@ -25,6 +27,38 @@ function isLibraryItem(value: unknown): value is LibraryItem {
   return isMedia(item.media) && ['watching', 'watchlist', 'completed', 'dropped'].includes(item.status ?? '');
 }
 
+async function fetchAllWatchedProgress(userId: string) {
+  const client = requireSupabase();
+  const rows: { media_id: number; season_number: number; episode_number: number; runtime_minutes: number | null }[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const result = await client.from('episode_progress')
+      .select('media_id,season_number,episode_number,runtime_minutes')
+      .eq('user_id', userId).eq('watched', true)
+      .order('media_id').order('season_number').order('episode_number')
+      .range(from, from + PAGE_SIZE - 1);
+    if (result.error) throw result.error;
+    const page = result.data ?? [];
+    rows.push(...page);
+    if (page.length < PAGE_SIZE) return rows;
+  }
+}
+
+async function fetchAllWatchedProgressKeys(userId: string) {
+  const client = requireSupabase();
+  const rows: { media_id: number; season_number: number; episode_number: number }[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const result = await client.from('episode_progress')
+      .select('media_id,season_number,episode_number')
+      .eq('user_id', userId).eq('watched', true)
+      .order('media_id').order('season_number').order('episode_number')
+      .range(from, from + PAGE_SIZE - 1);
+    if (result.error) throw result.error;
+    const page = result.data ?? [];
+    rows.push(...page);
+    if (page.length < PAGE_SIZE) return rows;
+  }
+}
+
 export function canPersistReviewTarget(targetKey: string, items: LibraryItem[], watchedEpisodes: Record<string, true>): boolean {
   const target = parseReviewTarget(targetKey);
   if (!target) return false;
@@ -41,14 +75,14 @@ export async function hydrateAndSyncUser(userId: string): Promise<void> {
   const [profileResult, libraryResult, progressResult, favoritesResult] = await Promise.all([
     client.from('profiles').select('username,first_name,last_name,language,avatar_url,cover_url').eq('id', userId).maybeSingle(),
     client.from('library_items').select('media,status,progress').eq('user_id', userId),
-    client.from('episode_progress').select('media_id,season_number,episode_number,runtime_minutes').eq('user_id', userId).eq('watched', true),
+    fetchAllWatchedProgress(userId),
     client.from('favorites').select('media').eq('user_id', userId),
   ]);
-  const error = profileResult.error ?? libraryResult.error ?? progressResult.error ?? favoritesResult.error;
+  const error = profileResult.error ?? libraryResult.error ?? favoritesResult.error;
   if (error) throw error;
 
   const watchedByMedia = new Map<number, number>();
-  for (const episode of progressResult.data ?? []) watchedByMedia.set(episode.media_id, (watchedByMedia.get(episode.media_id) ?? 0) + 1);
+  for (const episode of progressResult) watchedByMedia.set(episode.media_id, (watchedByMedia.get(episode.media_id) ?? 0) + 1);
   const remoteItems: LibraryItem[] = (libraryResult.data ?? []).flatMap((row) => {
     const storedProgress = row.progress && typeof row.progress === 'object' ? row.progress as LibraryItem['progress'] : undefined;
     const mediaId = row.media && typeof row.media === 'object' && !Array.isArray(row.media) && typeof row.media.id === 'number' ? row.media.id : undefined;
@@ -57,8 +91,8 @@ export async function hydrateAndSyncUser(userId: string): Promise<void> {
     const item: unknown = { media: row.media, status: row.status, progress };
     return isLibraryItem(item) ? [item] : [];
   });
-  const remoteWatched = Object.fromEntries((progressResult.data ?? []).map((row) => [`${row.media_id}:${row.season_number}:${row.episode_number}`, true])) as Record<string, true>;
-  const remoteRuntimes = Object.fromEntries((progressResult.data ?? []).flatMap((row) => row.runtime_minutes ? [[`${row.media_id}:${row.season_number}:${row.episode_number}`, row.runtime_minutes]] : []));
+  const remoteWatched = Object.fromEntries(progressResult.map((row) => [`${row.media_id}:${row.season_number}:${row.episode_number}`, true])) as Record<string, true>;
+  const remoteRuntimes = Object.fromEntries(progressResult.flatMap((row) => row.runtime_minutes ? [[`${row.media_id}:${row.season_number}:${row.episode_number}`, row.runtime_minutes]] : []));
   useLibraryStore.getState().mergeRemote(remoteItems, remoteWatched, remoteRuntimes);
 
   const remoteFavorites: Media[] = (favoritesResult.data ?? []).flatMap((row) => isMedia(row.media) ? [row.media] : []);
@@ -110,14 +144,13 @@ export async function persistCurrentUserState(userId: string): Promise<void> {
     const [mediaId, seasonNumber, episodeNumber] = key.split(':').map(Number);
     return { user_id: userId, media_id: mediaId!, season_number: seasonNumber!, episode_number: episodeNumber!, watched: true, runtime_minutes: library.episodeRuntimes[key] ?? null, watched_at: new Date().toISOString() };
   });
-  if (progressRows.length > 0) {
-    const result = await client.from('episode_progress').upsert(progressRows, { onConflict: 'user_id,media_id,season_number,episode_number' });
+  for (let from = 0; from < progressRows.length; from += WRITE_BATCH_SIZE) {
+    const result = await client.from('episode_progress').upsert(progressRows.slice(from, from + WRITE_BATCH_SIZE), { onConflict: 'user_id,media_id,season_number,episode_number' });
     if (result.error) throw result.error;
   }
-  const remoteProgress = await client.from('episode_progress').select('media_id,season_number,episode_number').eq('user_id', userId).eq('watched', true);
-  if (remoteProgress.error) throw remoteProgress.error;
+  const remoteProgress = await fetchAllWatchedProgressKeys(userId);
   const localProgressKeys = new Set(Object.keys(library.watchedEpisodes));
-  await Promise.all((remoteProgress.data ?? []).filter((row) => !localProgressKeys.has(`${row.media_id}:${row.season_number}:${row.episode_number}`)).map(async (row) => {
+  await Promise.all(remoteProgress.filter((row) => !localProgressKeys.has(`${row.media_id}:${row.season_number}:${row.episode_number}`)).map(async (row) => {
     const result = await client.from('episode_progress').delete().eq('user_id', userId).eq('media_id', row.media_id).eq('season_number', row.season_number).eq('episode_number', row.episode_number);
     if (result.error) throw result.error;
   }));
