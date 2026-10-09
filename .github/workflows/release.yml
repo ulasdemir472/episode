@@ -29,6 +29,8 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
       - name: EAS Build
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           AUTO_SUBMIT_FLAG=""
           if [ "${{ inputs.auto_submit }}" = "true" ]; then
