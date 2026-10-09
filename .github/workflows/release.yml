@@ -4,8 +4,12 @@ on:
     inputs:
       platform:
         type: choice
-        options: [all, android, ios]
-        default: all
+        options: [ios, android, all]
+        default: ios
+      auto_submit:
+        type: boolean
+        description: 'Otomatik TestFlight / Store gonderimi (--auto-submit)'
+        default: true
 permissions:
   contents: read
 jobs:
@@ -24,4 +28,11 @@ jobs:
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
-      - run: eas build --platform ${{ inputs.platform }} --profile production --non-interactive --no-wait
+      - name: EAS Build
+        run: |
+          AUTO_SUBMIT_FLAG=""
+          if [ "${{ inputs.auto_submit }}" = "true" ]; then
+            AUTO_SUBMIT_FLAG="--auto-submit"
+          fi
+          eas build --platform ${{ inputs.platform }} --profile production $AUTO_SUBMIT_FLAG --non-interactive --no-wait
+
