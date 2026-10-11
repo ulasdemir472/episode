@@ -44,4 +44,4 @@ jobs:
           CHANNEL="${{ inputs.channel || 'production' }}"
           RAW_MSG="${{ inputs.message || github.event.head_commit.message || 'Auto OTA update on commit' }}"
           SAFE_MSG=$(echo "$RAW_MSG" | head -n 1 | cut -c 1-80)
-          eas update --channel "$CHANNEL" --message "$SAFE_MSG" --non-interactive
+          eas update --channel "$CHANNEL" --environment "$CHANNEL" --message "$SAFE_MSG" --non-interactive
