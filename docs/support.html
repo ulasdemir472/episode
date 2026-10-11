@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Episode - Destek ve İletişim (Support)</title>
+  <style>
+    :root {
+      --bg: #07070A;
+      --surface: #121217;
+      --border: #22222B;
+      --text: #F3F4F6;
+      --muted: #9CA3AF;
+      --primary: #FF5A47;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 40px 20px 80px 20px;
+    }
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 24px;
+      margin-bottom: 32px;
+    }
+    .logo {
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: -1px;
+      color: var(--text);
+    }
+    .logo span {
+      color: var(--primary);
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 800;
+      margin-top: 16px;
+      margin-bottom: 8px;
+    }
+    h2 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-top: 32px;
+      margin-bottom: 12px;
+      color: var(--text);
+      border-left: 3px solid var(--primary);
+      padding-left: 10px;
+    }
+    p, li {
+      color: #D1D5DB;
+      font-size: 15px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin: 20px 0;
+    }
+    .contact-btn {
+      display: inline-block;
+      background: var(--primary);
+      color: #fff;
+      font-weight: 700;
+      padding: 12px 24px;
+      border-radius: 9999px;
+      text-decoration: none;
+      margin-top: 12px;
+    }
+    .contact-btn:hover {
+      opacity: 0.9;
+    }
+    .faq-item {
+      margin-bottom: 20px;
+    }
+    .faq-q {
+      font-weight: 700;
+      color: var(--text);
+      font-size: 16px;
+      margin-bottom: 4px;
+    }
+    .faq-a {
+      color: var(--muted);
+      font-size: 14px;
+    }
+    a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+    footer {
+      margin-top: 48px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">episode<span>.</span></div>
+      <h1>Destek ve Yardım / Support</h1>
+      <p style="color: var(--muted); margin: 0;">Episode uygulamasını kullanırken karşılaştığınız sorunlar veya önerileriniz için buradayız.</p>
+    </header>
+
+    <div class="card">
+      <h3 style="margin-top:0; font-size: 18px;">Bize Ulaşın (Contact Us)</h3>
+      <p>Her türlü teknik destek, hesap işlemi, hata bildirimi veya öneriniz için geliştirici ekibimize doğrudan e-posta gönderebilirsiniz:</p>
+      <a href="mailto:ulasdemir472@gmail.com" class="contact-btn">E-posta Gönder: ulasdemir472@gmail.com</a>
+    </div>
+
+    <h2>Sıkça Sorulan Sorular (FAQ)</h2>
+
+    <div class="faq-item">
+      <div class="faq-q">Episode üzerinden film veya dizi izleyebilir miyim?</div>
+      <div class="faq-a">Hayır. Episode, kişisel bir izleme listesi, takvim ve keşif uygulamasıdır. Herhangi bir video veya yayın (streaming) oynatma hizmeti sunmaz.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Hesabımı ve verilerimi nasıl silebilirim?</div>
+      <div class="faq-a">Uygulamadaki Profil sekmesine gidip "Hesabı Sil" seçeneğine dokunarak hesabınızı ve tüm verilerinizi kalıcı olarak silebilirsiniz. Dilerseniz yukarıdaki destek e-postamıza yazarak da silme talebinde bulunabilirsiniz.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Bildirimleri nasıl açıp kapatabilirim?</div>
+      <div class="faq-a">Cihazınızın Ayarlar > Bildirimler > Episode bölümünden yeni bölüm bildirimlerini dilediğiniz zaman yönetebilirsiniz.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Dizi ve film bilgileri nereden sağlanıyor?</div>
+      <div class="faq-a">Dizi, film ve bölüm bilgileri The Movie Database (TMDB) API'si üzerinden, puanlar ise OMDb API aracılığıyla sağlanmaktadır.</div>
+    </div>
+
+    <footer>
+      &copy; 2026 Episode. Tüm hakları saklıdır. &middot; <a href="privacy.html">Gizlilik Politikası</a>
+    </footer>
+  </div>
+</body>
+</html>
