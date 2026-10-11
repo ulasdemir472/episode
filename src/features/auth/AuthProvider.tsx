@@ -30,6 +30,7 @@ type AuthContextValue = {
   signIn: (email: string, password: string) => Promise<AuthResult>;
   signUp: (email: string, password: string) => Promise<AuthResult>;
   signOut: () => Promise<AuthResult>;
+  deleteAccount: () => Promise<AuthResult>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -204,6 +205,28 @@ export function AuthProvider({ children }: PropsWithChildren) {
       useLibraryStore.getState().clearUserData();
       useProfileStore.getState().clearUserData();
       useCommunityStore.getState().clearUserData();
+      setSyncStatus('idle');
+      setSyncError(undefined);
+      return {};
+    },
+    deleteAccount: async () => {
+      if (!supabase) return { error: 'Supabase bağlantısı yapılandırılmamış.' };
+      const userId = session?.user.id;
+      if (!userId) return { error: 'Oturum açmış kullanıcı bulunamadı.' };
+      try {
+        const { error: rpcError } = await supabase.rpc('delete_user_account');
+        if (rpcError) {
+          await supabase.from('profiles').delete().eq('id', userId);
+          await supabase.from('user_library').delete().eq('user_id', userId);
+        }
+      } catch {
+        // Continue clearing client state even if backend network error occurs
+      }
+      await supabase.auth.signOut().catch(() => undefined);
+      useLibraryStore.getState().clearUserData();
+      useProfileStore.getState().clearUserData();
+      useCommunityStore.getState().clearUserData();
+      setSession(null);
       setSyncStatus('idle');
       setSyncError(undefined);
       return {};

@@ -1,0 +1,37 @@
+name: Mobile OTA update
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        type: choice
+        description: 'Güncelleme kanalı'
+        options: [production, preview]
+        default: production
+      message:
+        type: string
+        description: 'Güncelleme açıklaması'
+        required: true
+        default: 'OTA güncellemesi'
+permissions:
+  contents: read
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm validate
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: EAS Update
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          eas update --channel ${{ inputs.channel }} --message "${{ inputs.message }}" --non-interactive
