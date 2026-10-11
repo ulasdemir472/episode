@@ -1,5 +1,12 @@
 name: Mobile OTA update
 on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - '.github/workflows/release.yml'
+      - '.github/workflows/supabase-migration.yml'
   workflow_dispatch:
     inputs:
       channel:
@@ -10,7 +17,7 @@ on:
       message:
         type: string
         description: 'Güncelleme açıklaması'
-        required: true
+        required: false
         default: 'OTA güncellemesi'
 permissions:
   contents: read
@@ -34,4 +41,7 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          eas update --channel ${{ inputs.channel }} --message "${{ inputs.message }}" --non-interactive
+          CHANNEL="${{ inputs.channel || 'production' }}"
+          RAW_MSG="${{ inputs.message || github.event.head_commit.message || 'Auto OTA update on commit' }}"
+          SAFE_MSG=$(echo "$RAW_MSG" | head -n 1 | cut -c 1-80)
+          eas update --channel "$CHANNEL" --message "$SAFE_MSG" --non-interactive
