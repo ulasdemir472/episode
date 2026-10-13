@@ -12,7 +12,7 @@ export function AuthGate({ children }: PropsWithChildren) {
   const pathname = usePathname();
   const hasSeenTutorial = useProfileStore((state) => state.hasSeenTutorial);
   const completeTutorial = useProfileStore((state) => state.completeTutorial);
-  const isAuthRoute = pathname === '/auth';
+  const isAuthRoute = pathname === '/auth' || pathname === '/reset-password';
 
   useEffect(() => {
     if (!auth.loading && !auth.user && !isAuthRoute) {

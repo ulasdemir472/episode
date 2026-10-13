@@ -2,6 +2,7 @@ import { createContext, PropsWithChildren, useCallback, useContext, useEffect, u
 import { AppState } from 'react-native';
 import { EmailOtpType, Session, User } from '@supabase/supabase-js';
 import * as Linking from 'expo-linking';
+import { router, type Href } from 'expo-router';
 import { isSupabaseConfigured, supabase } from '@/infrastructure/supabase/client';
 import { hydrateAndSyncUser, persistCurrentUserState } from '@/features/sync/user-sync-service';
 import { useLibraryStore } from '@/store/library-store';
@@ -29,6 +30,8 @@ type AuthContextValue = {
   retrySync: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<AuthResult>;
   signUp: (email: string, password: string) => Promise<AuthResult>;
+  resetPassword: (email: string) => Promise<AuthResult>;
+  updatePassword: (password: string) => Promise<AuthResult>;
   signOut: () => Promise<AuthResult>;
   deleteAccount: () => Promise<AuthResult>;
 };
@@ -111,10 +114,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setLoading(false);
       }
     }).catch(() => active && setLoading(false));
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (active) {
         setSession(nextSession);
         setLoading(false);
+        if (event === 'PASSWORD_RECOVERY') {
+          router.push('/reset-password' as Href);
+        }
       }
     });
     return () => {
@@ -129,12 +135,32 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const exchangeAuthCode = async (url: string | null) => {
       if (!url) return;
       const parsed = Linking.parse(url);
+      let type = readAuthParam(parsed.queryParams?.type);
       const code = readAuthParam(parsed.queryParams?.code);
-      if (code) await client.auth.exchangeCodeForSession(code).catch(() => undefined);
       const tokenHash = readAuthParam(parsed.queryParams?.token_hash);
-      const type = readAuthParam(parsed.queryParams?.type);
+
+      if (url.includes('#')) {
+        const hash = url.split('#')[1];
+        if (hash) {
+          const hashParams = new URLSearchParams(hash);
+          const accessToken = hashParams.get('access_token');
+          const refreshToken = hashParams.get('refresh_token');
+          const hashType = hashParams.get('type');
+          if (hashType) type = hashType;
+          if (accessToken && refreshToken) {
+            await client.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }).catch(() => undefined);
+          }
+        }
+      }
+
+      if (code) await client.auth.exchangeCodeForSession(code).catch(() => undefined);
       if (tokenHash && type && emailOtpTypes.has(type)) {
         await client.auth.verifyOtp({ token_hash: tokenHash, type: type as EmailOtpType }).catch(() => undefined);
+      }
+
+      const isRecovery = type === 'recovery' || parsed.path === 'reset-password' || parsed.hostname === 'reset-password';
+      if (isRecovery) {
+        router.push('/reset-password' as Href);
       }
     };
     Linking.getInitialURL().then(exchangeAuthCode).catch(() => undefined);
@@ -197,6 +223,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
         options: { emailRedirectTo: authRedirectUrl },
       });
       return error ? { error: error.message } : { needsEmailConfirmation: !data.session };
+    },
+    resetPassword: async (email) => {
+      if (!supabase) return { error: 'Supabase bağlantısı yapılandırılmamış.' };
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: authRedirectUrl,
+      });
+      return error ? { error: error.message } : {};
+    },
+    updatePassword: async (password) => {
+      if (!supabase) return { error: 'Supabase bağlantısı yapılandırılmamış.' };
+      const { error } = await supabase.auth.updateUser({ password });
+      return error ? { error: error.message } : {};
     },
     signOut: async () => {
       if (!supabase) return {};

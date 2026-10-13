@@ -127,8 +127,8 @@ export default function ProfileScreen() {
       </View>
       {auth.user ? (
         <View style={styles.accountActionRow}>
-          <MotionPressable onPress={handleDeleteAccount} style={[styles.accountAction, styles.deleteAction]}>
-            <Text style={styles.deleteActionText}>{isEnglish ? 'Delete account' : 'Hesabı sil'}</Text>
+          <MotionPressable onPress={() => router.push('/reset-password' as Href)} style={styles.accountAction}>
+            <Text style={styles.accountActionText}>{isEnglish ? 'Change password' : 'Şifre değiştir'}</Text>
           </MotionPressable>
           <MotionPressable onPress={() => auth.signOut()} style={styles.accountAction}>
             <Text style={styles.accountActionText}>{isEnglish ? 'Sign out' : 'Cikis yap'}</Text>
@@ -161,6 +161,20 @@ export default function ProfileScreen() {
 
     <View style={styles.sectionHeader}><Text style={styles.heading}>{isEnglish ? 'My favorites' : 'Favorilerim'}</Text><Text style={styles.caption}>{profile.favorites.length}</Text></View>
     {profile.favorites.length > 0 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.favorites}>{profile.favorites.map((media) => <MediaCard key={`${media.type}-${media.id}`} media={media} width={132} />)}</ScrollView> : <View style={styles.favoriteEmpty}><Ionicons name="heart-outline" size={28} color={colors.muted} /><Text style={styles.empty}>{isEnglish ? 'Tap the heart on a movie or show.' : 'Dizi veya film detayindaki kalbe dokun.'}</Text></View>}
+
+    {auth.user && (
+      <View style={styles.dangerZone}>
+        <MotionPressable onPress={handleDeleteAccount} style={styles.deleteAction}>
+          <Ionicons name="trash-outline" size={14} color={colors.primary} />
+          <Text style={styles.deleteActionText}>{isEnglish ? 'Delete account' : 'Hesabı sil'}</Text>
+        </MotionPressable>
+        <Text style={styles.dangerHint}>
+          {isEnglish
+            ? 'Permanently deletes your account and all sync data.'
+            : 'Hesabını ve senkronize edilmiş tüm verilerini kalıcı olarak siler.'}
+        </Text>
+      </View>
+    )}
 
     <View style={styles.legalPanel}>
       <Text style={styles.legalTitle}>Episode v1.0.0</Text>
@@ -197,13 +211,15 @@ function FriendsPanel({ userId, isEnglish }: { userId?: string; isEnglish: boole
 const styles = StyleSheet.create({
   cover: { height: 230, backgroundColor: colors.elevated }, profileHead: { alignItems: 'center', marginTop: -55, paddingHorizontal: spacing.lg }, avatar: { width: 92, height: 92, borderRadius: 46, backgroundColor: colors.primary, borderWidth: 4, borderColor: colors.background, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, avatarImage: { width: '100%', height: '100%' }, avatarText: { color: '#fff', fontSize: 28, fontWeight: '900' }, name: { color: colors.text, fontSize: 24, fontWeight: '900', marginTop: spacing.sm }, stats: { color: colors.muted, fontSize: 12, marginTop: 4 },
   accountPanel: { marginHorizontal: spacing.lg, marginTop: spacing.lg, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, accountInfo: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm }, accountCopy: { flex: 1 }, accountTitle: { color: colors.text, fontSize: 13, fontWeight: '900' }, accountDetail: { color: colors.muted, fontSize: 10, marginTop: 3 }, syncStatus: { color: colors.success, fontSize: 9, fontWeight: '800', marginTop: 5 }, syncError: { color: colors.primary },
-  accountActionRow: { flexDirection: 'row', gap: spacing.sm, alignSelf: 'flex-end', marginTop: spacing.md },
+  accountActionRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: spacing.sm, alignSelf: 'stretch', marginTop: spacing.md },
   accountAction: { borderRadius: radius.pill, paddingHorizontal: 16, paddingVertical: 9, borderWidth: 1, borderColor: colors.border },
   accountActionPrimary: { backgroundColor: colors.primary, borderColor: colors.primary },
   accountActionText: { color: colors.muted, fontSize: 11, fontWeight: '800' },
   accountActionPrimaryText: { color: '#fff', fontSize: 11, fontWeight: '900' },
-  deleteAction: { borderColor: 'rgba(255,90,71,.4)', backgroundColor: 'rgba(255,90,71,.08)' },
+  dangerZone: { marginHorizontal: spacing.lg, marginTop: spacing.xl, padding: spacing.md, borderRadius: radius.md, backgroundColor: 'rgba(255,90,71,.04)', borderWidth: 1, borderColor: 'rgba(255,90,71,.15)', alignItems: 'center', gap: 6 },
+  deleteAction: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: radius.pill, paddingHorizontal: 16, paddingVertical: 9, borderWidth: 1, borderColor: 'rgba(255,90,71,.4)', backgroundColor: 'rgba(255,90,71,.08)' },
   deleteActionText: { color: colors.primary, fontSize: 11, fontWeight: '800' },
+  dangerHint: { color: colors.muted, fontSize: 11, lineHeight: 15, textAlign: 'center' },
   retrySync: { alignSelf: 'flex-start', marginTop: 7, paddingVertical: 4 }, retrySyncText: { color: colors.primary, fontSize: 10, fontWeight: '900' },
   panel: { marginHorizontal: spacing.lg, marginTop: spacing.lg, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, panelTitle: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: spacing.md }, heading: { color: colors.text, fontSize: 17, fontWeight: '800' }, inputs: { flexDirection: 'row', gap: spacing.sm }, input: { flex: 1, height: 46, borderRadius: radius.sm, backgroundColor: colors.elevated, color: colors.text, paddingHorizontal: spacing.md, borderWidth: 1, borderColor: colors.border }, inputFull: { height: 46, borderRadius: radius.sm, backgroundColor: colors.elevated, color: colors.text, paddingHorizontal: spacing.md, borderWidth: 1, borderColor: colors.border, marginTop: spacing.sm }, profileActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm }, secondaryAction: { flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 9 }, secondaryActionText: { color: colors.text, fontWeight: '800', fontSize: 12 }, save: { backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 18, paddingVertical: 9 }, saveText: { color: '#fff', fontWeight: '800', fontSize: 12 },
   language: { flexDirection: 'row', gap: spacing.sm }, languageOption: { flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: radius.sm, backgroundColor: colors.elevated }, languageActive: { backgroundColor: colors.text }, languageText: { color: colors.muted, fontWeight: '800' }, languageTextActive: { color: colors.background }, sectionHeader: { marginHorizontal: spacing.lg, marginTop: spacing.xl, marginBottom: spacing.md, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, caption: { color: colors.primary, fontSize: 11, fontWeight: '700' }, removeCover: { flexDirection: 'row', alignItems: 'center', gap: 6 }, removeCoverText: { color: colors.primary, fontSize: 11, fontWeight: '800' }, coverChoices: { paddingHorizontal: spacing.lg, gap: spacing.sm }, coverChoice: { width: 145, padding: 4, borderRadius: radius.md, borderWidth: 2, borderColor: 'transparent' }, coverSelected: { borderColor: colors.primary }, coverImage: { width: 133, height: 78, borderRadius: radius.sm, backgroundColor: colors.elevated }, coverTitle: { color: colors.text, fontSize: 10, fontWeight: '700', marginTop: 6 }, favorites: { paddingHorizontal: spacing.lg }, empty: { color: colors.muted, fontSize: 12, lineHeight: 18, textAlign: 'center', paddingHorizontal: spacing.xl }, emptyInline: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 3 }, favoriteEmpty: { alignItems: 'center', gap: spacing.sm, paddingBottom: spacing.xl }, friendShortcut: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, panelTitleInline: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
