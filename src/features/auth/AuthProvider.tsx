@@ -12,6 +12,7 @@ import { useCommunityStore } from '@/store/community-store';
 type AuthResult = { error?: string; needsEmailConfirmation?: boolean };
 
 const authRedirectUrl = 'episode://auth';
+const resetPasswordRedirectUrl = 'episode://reset-password';
 const emailOtpTypes = new Set(['signup', 'email', 'magiclink', 'recovery', 'invite', 'email_change']);
 const syncRetryDelays = [2_000, 5_000, 15_000, 30_000, 60_000] as const;
 type SyncOperation = 'hydrate' | 'persist';
@@ -158,7 +159,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
         await client.auth.verifyOtp({ token_hash: tokenHash, type: type as EmailOtpType }).catch(() => undefined);
       }
 
-      const isRecovery = type === 'recovery' || parsed.path === 'reset-password' || parsed.hostname === 'reset-password';
+      const isRecovery =
+        type === 'recovery' ||
+        parsed.path === 'reset-password' ||
+        parsed.hostname === 'reset-password' ||
+        url.includes('reset-password');
       if (isRecovery) {
         router.push('/reset-password' as Href);
       }
@@ -227,7 +232,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     resetPassword: async (email) => {
       if (!supabase) return { error: 'Supabase bağlantısı yapılandırılmamış.' };
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: authRedirectUrl,
+        redirectTo: resetPasswordRedirectUrl,
       });
       return error ? { error: error.message } : {};
     },

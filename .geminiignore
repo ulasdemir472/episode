@@ -1,0 +1,18 @@
+# Gemini & Antigravity Index Ignore File
+# Prevents large or binary files from polluting token context
+
+node_modules/
+.pnpm-store/
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+.git/
+.expo/
+.eas/
+coverage/
+dist/
+web-build/
+assets/
+docs/*.html
+supabase/.temp/
+*.log

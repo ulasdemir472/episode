@@ -30,11 +30,11 @@ describe('Password Reset', () => {
 
       const email = 'user@example.com';
       const result = await mockAuth.resetPasswordForEmail(email.trim(), {
-        redirectTo: 'episode://auth',
+        redirectTo: 'episode://reset-password',
       });
 
       expect(mockAuth.resetPasswordForEmail).toHaveBeenCalledWith('user@example.com', {
-        redirectTo: 'episode://auth',
+        redirectTo: 'episode://reset-password',
       });
       expect(result.error).toBeNull();
     });
@@ -46,7 +46,7 @@ describe('Password Reset', () => {
       });
 
       const result = await mockAuth.resetPasswordForEmail('invalid@example.com', {
-        redirectTo: 'episode://auth',
+        redirectTo: 'episode://reset-password',
       });
 
       expect(result.error).toEqual({ message: 'Kullanıcı bulunamadı.' });

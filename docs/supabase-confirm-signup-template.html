@@ -11,23 +11,24 @@
         </tr>
         <tr>
           <td style="padding:0 30px 8px;text-align:center;">
-            <h1 style="margin:0;font-size:30px;line-height:1.15;font-weight:900;letter-spacing:-.5px;color:#F7F4F1;">Episode hesabini dogrula</h1>
-            <p style="margin:14px auto 0;max-width:390px;font-size:15px;line-height:1.6;color:#A8A3AD;">
-              Izleme listeni, favorilerini, yorumlarini ve puanlarini cihazlar arasinda senkronize etmek icin e-postani onayla.
+            <h1 style="margin:0;font-size:26px;line-height:1.2;font-weight:900;letter-spacing:-.5px;color:#F7F4F1;">Hesabını doğrula <span style="font-size:18px;color:#6F6876;font-weight:600;">/ Confirm email</span></h1>
+            <p style="margin:14px auto 0;max-width:400px;font-size:14px;line-height:1.6;color:#A8A3AD;">
+              İzleme listeni, favorilerini ve yorumlarını senkronize etmek için e-postanı onayla.<br>
+              <span style="display:inline-block;margin-top:6px;font-size:13px;color:#787280;">Confirm your email address to sync your watchlist, favorites, and reviews.</span>
             </p>
           </td>
         </tr>
         <tr>
-          <td align="center" style="padding:28px 30px 14px;">
-            <a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email" style="display:inline-block;background:#FF5A47;color:#FFFFFF;text-decoration:none;font-size:15px;font-weight:900;padding:15px 24px;border-radius:999px;">
-              Hesabimi dogrula
+          <td align="center" style="padding:24px 30px 14px;">
+            <a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email" style="display:inline-block;background:#FF5A47;color:#FFFFFF;text-decoration:none;font-size:15px;font-weight:900;padding:15px 28px;border-radius:999px;">
+              Hesabımı doğrula &bull; Confirm account
             </a>
           </td>
         </tr>
         <tr>
           <td style="padding:10px 30px 30px;text-align:center;">
             <p style="margin:0;font-size:12px;line-height:1.6;color:#6F6876;">
-              Buton calismazsa bu baglantiyi tarayicina yapistir:
+              Buton çalışmazsa bağlantıyı tarayıcına yapıştır / If the button doesn't work, copy the link:
             </p>
             <p style="margin:8px 0 0;font-size:11px;line-height:1.6;color:#8D8794;word-break:break-all;">
               {{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email
@@ -35,7 +36,9 @@
           </td>
         </tr>
       </table>
-      <p style="margin:18px 0 0;font-size:11px;color:#6F6876;">Bu e-postayi Episode hesabini olusturdugun icin aldın.</p>
+      <p style="margin:18px 0 0;font-size:11px;color:#6F6876;text-align:center;">
+        Bu e-postayı Episode hesabı oluşturduğun için aldın. / You received this email because you created an Episode account.
+      </p>
     </td>
   </tr>
 </table>
