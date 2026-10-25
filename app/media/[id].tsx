@@ -9,7 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Screen } from '@/components/Screen';
 import { CommunityPanel } from '@/components/CommunityPanel';
 import { EpisodeDetails, Media } from '@/domain/media';
-import { catalogService } from '@/services/tmdb';
+import { catalogService, translateGenre } from '@/services/tmdb';
 import { useLibraryStore } from '@/store/library-store';
 import { useProfileStore } from '@/store/profile-store';
 import { colors, radius, spacing } from '@/theme/tokens';
@@ -67,6 +67,7 @@ const EpisodeRow = memo(function EpisodeRow({ episode, imdb, watched, onToggle, 
 
 export default function MediaDetailScreen() {
   const en = useProfileStore((state) => state.language) === 'en';
+  const language = useProfileStore((state) => state.language);
   const params = useLocalSearchParams<{ data?: string; tutorialTarget?: string }>();
   const auth = useAuth();
   const media = useMemo(() => parseMedia(params.data), [params.data]);
@@ -87,15 +88,26 @@ export default function MediaDetailScreen() {
   const hasWatchedEpisode = useMemo(() => media ? Object.keys(watchedEpisodes).some((key) => key.startsWith(`${media.id}:`)) : false, [media, watchedEpisodes]);
 
   const seriesQuery = useQuery({
-    queryKey: ['series', media?.id], queryFn: () => catalogService.seriesDetails(media!.id),
+    queryKey: ['series', media?.id, language],
+    queryFn: () => catalogService.seriesDetails(media!.id, language),
     enabled: media?.type === 'tv',
   });
   const activeSeason = season ?? seriesQuery.data?.seasons[0]?.number;
 
   const episodesQuery = useQuery({
-    queryKey: ['episodes', media?.id, activeSeason],
-    queryFn: () => catalogService.seasonEpisodes(media!.id, activeSeason!),
+    queryKey: ['episodes', media?.id, activeSeason, language],
+    queryFn: () => catalogService.seasonEpisodes(media!.id, activeSeason!, language),
     enabled: media?.type === 'tv' && Boolean(activeSeason),
+  });
+  const movieDetailsQuery = useQuery({
+    queryKey: ['movie-details', media?.id, language],
+    queryFn: async () => {
+      if (!media || media.type !== 'movie') return null;
+      const results = await catalogService.search(media.title, language);
+      return results.find((item) => item.id === media.id) ?? null;
+    },
+    enabled: media?.type === 'movie',
+    staleTime: 60 * 60_000,
   });
   const imdbTitleQuery = useQuery({
     queryKey: ['imdb-title', media?.type, media?.id], queryFn: () => catalogService.imdbTitleRating(media!),
@@ -108,8 +120,8 @@ export default function MediaDetailScreen() {
     staleTime: 24 * 60 * 60_000,
   });
   const recommendationsQuery = useQuery({
-    queryKey: ['recommendations', media?.type, media?.id],
-    queryFn: () => catalogService.recommendations(media!),
+    queryKey: ['recommendations', media?.type, media?.id, language],
+    queryFn: () => catalogService.recommendations(media!, language),
     enabled: Boolean(media),
     staleTime: 6 * 60 * 60_000,
   });
@@ -192,6 +204,10 @@ export default function MediaDetailScreen() {
     );
   };
   const watchedCount = episodesQuery.data?.filter((episode) => watchedEpisodes[`${media.id}:${episode.seasonNumber}:${episode.number}`]).length ?? 0;
+  const displayTitle = (media.type === 'tv' ? seriesQuery.data?.originalTitle : movieDetailsQuery.data?.title) || media.title;
+  const displayOverview = (media.type === 'tv' ? seriesQuery.data?.overview : movieDetailsQuery.data?.overview) || media.overview;
+  const rawGenres = (media.type === 'movie' && movieDetailsQuery.data?.genres.length ? movieDetailsQuery.data.genres : media.genres) ?? [];
+  const localizedGenres = rawGenres.map((g) => translateGenre(g, en));
 
   return <Screen>
     <ImageBackground source={{ uri: media.backdropUrl }} style={styles.hero}>
@@ -201,13 +217,13 @@ export default function MediaDetailScreen() {
     </ImageBackground>
     <View style={styles.body}>
       <Text style={styles.type}>{media.type === 'tv' ? (en ? 'TV SHOW' : 'DİZİ') : (en ? 'MOVIE' : 'FİLM')} · {media.year}</Text>
-      <Text style={styles.title}>{media.title}</Text>
+      <Text style={styles.title}>{displayTitle}</Text>
       <View style={styles.meta}>
         <View style={styles.score}><Ionicons name="star" color={colors.warning} size={15} /><Text style={styles.rating}>{media.rating} TMDB</Text></View>
         {imdbTitleQuery.data && <View style={styles.imdbBadge}><Text style={styles.imdbLabel}>IMDb</Text><Text style={styles.imdbValue}>{imdbTitleQuery.data}</Text></View>}
       </View>
-      {media.genres.length > 0 && <Text style={styles.genres}>{media.genres.join('  ·  ')}</Text>}
-      <Text style={styles.overview}>{media.overview}</Text>
+      {localizedGenres.length > 0 && <Text style={styles.genres}>{localizedGenres.join('  ·  ')}</Text>}
+      <Text style={styles.overview}>{displayOverview}</Text>
       <MotionPressable style={[styles.action, saved && styles.saved]} onPress={toggleSaved}><Ionicons name={saved ? 'checkmark' : 'add'} size={21} color="#fff" /><Text style={styles.actionText}>{saved ? (en ? 'In my list' : 'Listemde') : (en ? 'Add to list' : 'Listeme ekle')}</Text></MotionPressable>
       <MotionPressable disabled={media.type === 'tv' && seasons.length === 0} style={[styles.watchedAction, currentStatus === 'completed' && styles.watchedActive, media.type === 'tv' && seasons.length === 0 && styles.disabled]} onPress={markTitleWatched}><Ionicons name={currentStatus === 'completed' ? 'checkmark-circle' : 'checkmark-circle-outline'} size={21} color={currentStatus === 'completed' ? '#fff' : colors.text} /><Text style={styles.watchedText}>{currentStatus === 'completed' ? (media.type === 'movie' ? (en ? 'Watched · Undo' : 'İzlendi · Geri al') : (en ? 'Watched' : 'İzlendi')) : media.type === 'movie' ? (en ? 'Watched' : 'İzledim') : (en ? 'Watched all' : 'Tümünü izledim')}</Text></MotionPressable>
       {media.type === 'tv' && saved && currentStatus !== 'completed' && <MotionPressable style={styles.dropAction} onPress={() => { if (requireUser()) upsert(media, currentStatus === 'dropped' ? 'watching' : 'dropped'); }}><Ionicons name={currentStatus === 'dropped' ? 'play-outline' : 'stop-circle-outline'} size={18} color={currentStatus === 'dropped' ? colors.success : colors.muted} /><Text style={[styles.dropText, currentStatus === 'dropped' && styles.resumeText]}>{currentStatus === 'dropped' ? (en ? 'Resume watching' : 'İzlemeye devam et') : (en ? 'Dropped' : 'İzlemeyi bıraktım')}</Text></MotionPressable>}

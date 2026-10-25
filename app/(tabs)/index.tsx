@@ -15,7 +15,10 @@ export default function HomeScreen() {
   const profile = useProfileStore();
   const en = profile.language === 'en';
   const initials = `${profile.firstName[0] ?? 'E'}${profile.lastName[0] ?? ''}`.toUpperCase();
-  const { data = [], isLoading, isError, refetch } = useQuery({ queryKey: ['trending'], queryFn: catalogService.trending });
+  const { data = [], isLoading, isError, refetch } = useQuery({
+    queryKey: ['trending', profile.language],
+    queryFn: () => catalogService.trending(profile.language),
+  });
   const hero = data[0];
   return <Screen>
     <View style={styles.top}><View><Text style={styles.eyebrow}>{en ? 'WHAT ARE WE WATCHING?' : 'BU GECE NE İZLİYORUZ?'}</Text><Text style={styles.logo}>episode<Text style={styles.dot}>.</Text></Text></View><View style={styles.topActions}><Pressable accessibilityLabel={en ? 'Open watch wheel' : 'Film çarkını aç'} onPress={() => router.push('/watch-wheel' as Href)}><LinearGradient colors={['#FF4D8D', '#FF7A45', '#FFD166']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.wheelButton}><Ionicons name="color-wand" size={19} color="#fff" /><View style={styles.wheelBadge}><Text style={styles.wheelBadgeText}>{en ? 'SPIN' : 'ÇARK'}</Text></View></LinearGradient></Pressable><Pressable onPress={() => router.push('/profile' as Href)} style={styles.avatar}><Text style={styles.avatarText}>{initials}</Text></Pressable></View></View>

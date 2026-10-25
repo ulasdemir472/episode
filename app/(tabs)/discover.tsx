@@ -37,19 +37,28 @@ const genres: Genre[] = [
 ];
 
 export default function DiscoverScreen() {
-  const en = useProfileStore((state) => state.language) === 'en';
+  const language = useProfileStore((state) => state.language);
+  const en = language === 'en';
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebouncedValue(query.trim(), 450);
   const [type, setType] = useState<TypeFilter>('all');
   const [genre, setGenre] = useState<Genre>();
   const searching = query.trim().length > 1;
 
-  const search = useQuery({ queryKey: ['search', debouncedQuery], queryFn: () => catalogService.search(debouncedQuery), enabled: debouncedQuery.length > 1 });
-  const trending = useQuery({ queryKey: ['trending'], queryFn: catalogService.trending, enabled: !searching && type === 'all' });
+  const search = useQuery({
+    queryKey: ['search', debouncedQuery, language],
+    queryFn: () => catalogService.search(debouncedQuery, language),
+    enabled: debouncedQuery.length > 1,
+  });
+  const trending = useQuery({
+    queryKey: ['trending', language],
+    queryFn: () => catalogService.trending(language),
+    enabled: !searching && type === 'all',
+  });
   const genreId = type === 'movie' ? genre?.movie : type === 'tv' ? genre?.tv : undefined;
   const discovery = useQuery({
-    queryKey: ['discover', type, genreId],
-    queryFn: () => catalogService.discover(type as MediaType, genreId, 3),
+    queryKey: ['discover', type, genreId, language],
+    queryFn: () => catalogService.discover(type as MediaType, genreId, 3, language),
     enabled: !searching && type !== 'all',
   });
   const activeQuery = searching ? search : type === 'all' ? trending : discovery;

@@ -21,7 +21,8 @@ const wheelColors = ['#FF4D8D', '#FF7A45', '#FFD166', '#55D6BE', '#4D96FF', '#7C
 
 export default function WatchWheelScreen() {
   const auth = useAuth();
-  const en = useProfileStore((state) => state.language) === 'en';
+  const language = useProfileStore((state) => state.language);
+  const en = language === 'en';
   const userId = auth.user?.id;
   const queryClient = useQueryClient();
   const [activeId, setActiveId] = useState<string>();
@@ -37,7 +38,12 @@ export default function WatchWheelScreen() {
   const activeWheel = wheels.data?.find((wheel) => wheel.id === resolvedActiveId);
   const entries = useQuery({ queryKey: ['watch-wheel-entries', resolvedActiveId], queryFn: () => fetchWheelEntries(resolvedActiveId!), enabled: Boolean(resolvedActiveId), refetchOnMount: 'always' });
   const friends = useQuery({ queryKey: ['friends', userId], queryFn: () => fetchFriendships(userId!), enabled: Boolean(userId) });
-  const searchResults = useQuery({ queryKey: ['wheel-media-search', search], queryFn: () => catalogService.search(search), enabled: search.trim().length >= 2, staleTime: 60_000 });
+  const searchResults = useQuery({
+    queryKey: ['wheel-media-search', search, language],
+    queryFn: () => catalogService.search(search, language),
+    enabled: search.trim().length >= 2,
+    staleTime: 60_000,
+  });
 
   useEffect(() => {
     if (!supabase || !resolvedActiveId) return undefined;

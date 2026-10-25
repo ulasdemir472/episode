@@ -41,6 +41,8 @@ export interface SeasonSummary {
 export interface SeriesDetails {
   seasons: SeasonSummary[];
   episodeRunTime?: number;
+  overview?: string;
+  originalTitle?: string;
 }
 
 export interface EpisodeDetails {

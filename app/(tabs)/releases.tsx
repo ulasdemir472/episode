@@ -52,7 +52,8 @@ function AnimatedContinueCard({ children }: { children: ReactNode }) {
 
 export default function ReleasesScreen() {
   const auth = useAuth();
-  const en = useProfileStore((state) => state.language) === 'en';
+  const language = useProfileStore((state) => state.language);
+  const en = language === 'en';
   const [now] = useState(() => Date.now());
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const items = useLibraryStore((state) => state.items);
@@ -65,7 +66,12 @@ export default function ReleasesScreen() {
     .filter((item) => item.media.type === 'tv' && item.status === 'watching' && item.progress?.nextEpisode)
     .sort((left, right) => (right.progress?.updatedAt ?? '').localeCompare(left.progress?.updatedAt ?? ''));
   const continuingEpisodeIds = new Set(continuingItems.map((item) => `${item.media.id}:${item.progress!.nextEpisode!.season}:${item.progress!.nextEpisode!.episode}`));
-  const schedule = useQuery({ queryKey: ['episode-schedule', followedShows.map((show) => show.id)], queryFn: () => catalogService.episodeSchedule(followedShows), enabled: followedShows.length > 0, staleTime: 15 * 60_000 });
+  const schedule = useQuery({
+    queryKey: ['episode-schedule', followedShows.map((show) => show.id), language],
+    queryFn: () => catalogService.episodeSchedule(followedShows, language),
+    enabled: followedShows.length > 0,
+    staleTime: 15 * 60_000,
+  });
   const visible = (schedule.data ?? []).filter((release) => !watchedEpisodes[release.id] && !continuingEpisodeIds.has(release.id));
   const aired = visible.filter((release) => new Date(`${release.airDate}T23:59:59`).getTime() <= now).reverse();
   const upcoming = visible.filter((release) => new Date(`${release.airDate}T23:59:59`).getTime() > now);
@@ -115,12 +121,12 @@ export default function ReleasesScreen() {
       let runtime = item.progress?.runtimeMinutes;
       let seasons = item.progress?.seasons?.map((season) => ({ id: season.number, number: season.number, name: `${season.number}. ${en ? 'Season' : 'Sezon'}`, episodeCount: season.episodeCount })) ?? [];
       if (seasons.length === 0) {
-        const details = await catalogService.seriesDetails(item.media.id);
+        const details = await catalogService.seriesDetails(item.media.id, language);
         seasons = details.seasons;
         runtime = details.episodeRunTime ?? runtime;
       }
       toggleEpisode(item.media, next.season, next.episode, seasons, runtime);
-      void catalogService.seasonEpisodes(item.media.id, next.season).then((episodes) => {
+      void catalogService.seasonEpisodes(item.media.id, next.season, language).then((episodes) => {
         const episode = episodes.find((candidate) => candidate.number === next.episode);
         if (episode?.runtime) recordEpisodeRuntimes(item.media.id, { [episodeId]: episode.runtime }, runtime);
       }).catch(() => undefined);
