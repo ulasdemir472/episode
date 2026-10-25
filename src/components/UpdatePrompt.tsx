@@ -4,12 +4,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import * as Updates from 'expo-updates';
 import { colors, radius, spacing } from '@/theme/tokens';
+import { useProfileStore } from '@/store/profile-store';
 
 const FOREGROUND_CHECK_INTERVAL_MS = 5 * 60_000;
 const UPDATE_RESTART_KEY = 'episode-update-restart-pending';
 const LAST_UPDATE_ID_KEY = 'episode-last-running-update-id';
 
 export function UpdatePrompt() {
+  const en = useProfileStore((state) => state.language) === 'en';
   const { currentlyRunning, isUpdateAvailable, isUpdatePending } = Updates.useUpdates();
   const [downloadedReady, setDownloadedReady] = useState(false);
   const [dismissed, setDismissed] = useState(false);
@@ -23,9 +25,9 @@ export function UpdatePrompt() {
     Promise.all([AsyncStorage.getItem(UPDATE_RESTART_KEY), AsyncStorage.getItem(LAST_UPDATE_ID_KEY)]).then(async ([restartPending, previousUpdateId]) => {
       const silentlyApplied = !currentlyRunning.isEmbeddedLaunch && previousUpdateId !== updateId;
       await AsyncStorage.multiSet([[LAST_UPDATE_ID_KEY, updateId], [UPDATE_RESTART_KEY, '']]);
-      if (restartPending || silentlyApplied) Alert.alert('Episode güncellendi', 'Yeni sürüm başarıyla yüklendi. Yenilikleri kullanmaya başlayabilirsin.');
+      if (restartPending || silentlyApplied) Alert.alert(en ? 'Episode updated' : 'Episode güncellendi', en ? 'New version installed successfully. Enjoy the new features.' : 'Yeni sürüm başarıyla yüklendi. Yenilikleri kullanmaya başlayabilirsin.');
     }).catch(() => undefined);
-  }, [currentlyRunning.isEmbeddedLaunch, currentlyRunning.updateId]);
+  }, [currentlyRunning.isEmbeddedLaunch, currentlyRunning.updateId, en]);
 
   const checkAndDownload = useCallback(async () => {
     if (__DEV__ || !Updates.isEnabled || checking.current || Date.now() - lastCheckAt.current < FOREGROUND_CHECK_INTERVAL_MS) return;
@@ -71,10 +73,10 @@ export function UpdatePrompt() {
     <View style={styles.backdrop}>
       <View style={styles.card}>
         <View style={styles.icon}><Ionicons name="sparkles" size={24} color={colors.primary} /></View>
-        <Text style={styles.title}>Güncelleme hazır</Text>
-        <Text style={styles.body}>Episode’ın yeni sürümü indirildi. Yenilikleri kullanmak için uygulamayı yeniden başlat.</Text>
-        <Pressable disabled={restarting} onPress={() => void restart()} style={[styles.primary, restarting && styles.disabled]}><Ionicons name="refresh" size={17} color="#fff" /><Text style={styles.primaryText}>{restarting ? 'Yeniden başlatılıyor…' : 'Şimdi yeniden başlat'}</Text></Pressable>
-        <Pressable disabled={restarting} onPress={() => setDismissed(true)} style={styles.later}><Text style={styles.laterText}>Daha sonra</Text></Pressable>
+        <Text style={styles.title}>{en ? 'Update ready' : 'Güncelleme hazır'}</Text>
+        <Text style={styles.body}>{en ? 'A new version of Episode has been downloaded. Restart to apply the update.' : 'Episode’ın yeni sürümü indirildi. Yenilikleri kullanmak için uygulamayı yeniden başlat.'}</Text>
+        <Pressable disabled={restarting} onPress={() => void restart()} style={[styles.primary, restarting && styles.disabled]}><Ionicons name="refresh" size={17} color="#fff" /><Text style={styles.primaryText}>{restarting ? (en ? 'Restarting…' : 'Yeniden başlatılıyor…') : (en ? 'Restart now' : 'Şimdi yeniden başlat')}</Text></Pressable>
+        <Pressable disabled={restarting} onPress={() => setDismissed(true)} style={styles.later}><Text style={styles.laterText}>{en ? 'Later' : 'Daha sonra'}</Text></Pressable>
       </View>
     </View>
   </Modal>;

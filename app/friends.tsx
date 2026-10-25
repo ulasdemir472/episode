@@ -7,11 +7,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MotionPressable } from '@/components/MotionPressable';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { fetchAcceptedFriendProfiles, fetchFriendships, Friendship, PublicProfile, removeFriendship, respondFriendRequest, searchProfiles, sendFriendRequest } from '@/features/friends/friends-repository';
+import { useProfileStore } from '@/store/profile-store';
 import { colors, radius, spacing } from '@/theme/tokens';
 
 type Row = { kind: 'header'; id: string; title: string } | { kind: 'friend'; id: string; friendship: Friendship } | { kind: 'empty'; id: string; text: string };
 
 export default function FriendsScreen() {
+  const en = useProfileStore((state) => state.language) === 'en';
   const auth = useAuth();
   const userId = auth.user?.id;
   const params = useLocalSearchParams<{ profileId?: string; profileName?: string }>();
@@ -23,7 +25,11 @@ export default function FriendsScreen() {
   const publicFriends = useQuery({ queryKey: ['friend-connections', viewedProfileId], queryFn: () => fetchAcceptedFriendProfiles(viewedProfileId!), enabled: Boolean(userId && viewingOtherProfile), staleTime: 15_000 });
   const found = useQuery({ queryKey: ['profile-search', userId, search], queryFn: () => searchProfiles(search, userId!), enabled: Boolean(userId && !viewingOtherProfile && search.trim().length >= 2), staleTime: 5_000 });
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['friends', userId] });
-  const send = useMutation({ mutationFn: (target: string) => sendFriendRequest(userId!, target), onSuccess: refresh, onError: () => Alert.alert('İstek gönderilemedi', 'Daha sonra tekrar dene.') });
+  const send = useMutation({
+    mutationFn: (target: string) => sendFriendRequest(userId!, target),
+    onSuccess: refresh,
+    onError: () => Alert.alert(en ? 'Could not send request' : 'İstek gönderilemedi', en ? 'Please try again later.' : 'Daha sonra tekrar dene.')
+  });
   const respond = useMutation({ mutationFn: ({ id, status }: { id: string; status: 'accepted' | 'declined' }) => respondFriendRequest(id, status), onSuccess: refresh });
   const remove = useMutation({ mutationFn: removeFriendship, onSuccess: refresh });
   const rows = friendships.data ?? [];
@@ -32,42 +38,223 @@ export default function FriendsScreen() {
   const outgoing = rows.filter((item) => item.direction === 'outgoing');
   const relationshipByProfile = new Map(rows.map((item) => [item.profile.id, item]));
   const list: Row[] = [
-    ...section('Gelen istekler', 'incoming', incoming, 'Yeni istek yok.'),
-    ...section('Arkadaşlarım', 'accepted', accepted, 'Henüz arkadaşın yok.'),
-    ...section('Gönderilen istekler', 'outgoing', outgoing, 'Bekleyen isteğin yok.'),
+    ...section(en ? 'Incoming requests' : 'Gelen istekler', 'incoming', incoming, en ? 'No new requests.' : 'Yeni istek yok.'),
+    ...section(en ? 'My friends' : 'Arkadaşlarım', 'accepted', accepted, en ? 'No friends yet.' : 'Henüz arkadaşın yok.'),
+    ...section(en ? 'Sent requests' : 'Gönderilen istekler', 'outgoing', outgoing, en ? 'No pending requests.' : 'Bekleyen isteğin yok.'),
   ];
 
-  if (!userId) return <View style={styles.root}><Header /><View style={styles.center}><Text style={styles.empty}>Arkadaşlarını görmek için giriş yapmalısın.</Text><MotionPressable onPress={() => router.push('/auth' as Href)} style={styles.primary}><Text style={styles.primaryText}>Giriş yap</Text></MotionPressable></View></View>;
+  if (!userId) {
+    return (
+      <View style={styles.root}>
+        <Header />
+        <View style={styles.center}>
+          <Text style={styles.empty}>{en ? 'Sign in to see your friends.' : 'Arkadaşlarını görmek için giriş yapmalısın.'}</Text>
+          <MotionPressable onPress={() => router.push('/auth' as Href)} style={styles.primary}>
+            <Text style={styles.primaryText}>{en ? 'Sign in' : 'Giriş yap'}</Text>
+          </MotionPressable>
+        </View>
+      </View>
+    );
+  }
 
-  if (viewingOtherProfile) return <View style={styles.root}>
-    <Header title="Arkadaşlar" />
-    <View style={styles.publicIntro}><Text style={styles.publicName}>{params.profileName ?? 'Bu profil'}</Text><Text style={styles.publicDetail}>{publicFriends.isLoading ? 'Arkadaşları yükleniyor…' : `${publicFriends.data?.length ?? 0} arkadaş`}</Text></View>
-    {publicFriends.isError ? <Text style={styles.error}>Arkadaş listesi yüklenemedi.</Text> : <FlatList data={publicFriends.data ?? []} keyExtractor={(profile) => profile.id} contentContainerStyle={styles.list} ListEmptyComponent={publicFriends.isLoading ? null : <Text style={styles.emptyRow}>Henüz arkadaşı yok.</Text>} renderItem={({ item }) => <ProfileRow profile={item} onPress={() => router.push(`/profile/${item.id}` as Href)} action={<Ionicons name="chevron-forward" size={18} color={colors.muted} />} />} />}
-  </View>;
+  if (viewingOtherProfile) {
+    return (
+      <View style={styles.root}>
+        <Header title={en ? 'Friends' : 'Arkadaşlar'} />
+        <View style={styles.publicIntro}>
+          <Text style={styles.publicName}>{params.profileName ?? (en ? 'This profile' : 'Bu profil')}</Text>
+          <Text style={styles.publicDetail}>{publicFriends.isLoading ? (en ? 'Loading friends…' : 'Arkadaşları yükleniyor…') : (en ? `${publicFriends.data?.length ?? 0} friends` : `${publicFriends.data?.length ?? 0} arkadaş`)}</Text>
+        </View>
+        {publicFriends.isError ? (
+          <Text style={styles.error}>{en ? 'Could not load friends list.' : 'Arkadaş listesi yüklenemedi.'}</Text>
+        ) : (
+          <FlatList
+            data={publicFriends.data ?? []}
+            keyExtractor={(profile) => profile.id}
+            contentContainerStyle={styles.list}
+            ListEmptyComponent={publicFriends.isLoading ? null : <Text style={styles.emptyRow}>{en ? 'No friends yet.' : 'Henüz arkadaşı yok.'}</Text>}
+            renderItem={({ item }) => <ProfileRow profile={item} onPress={() => router.push(`/profile/${item.id}` as Href)} action={<Ionicons name="chevron-forward" size={18} color={colors.muted} />} />}
+          />
+        )}
+      </View>
+    );
+  }
 
-  return <View style={styles.root}>
-    <Header />
-    <View style={styles.searchWrap}><Ionicons name="search" size={18} color={colors.muted} /><TextInput value={search} onChangeText={setSearch} autoCapitalize="none" placeholder="Kullanıcı adı veya isim ara" placeholderTextColor={colors.muted} style={styles.search} /></View>
-    {search.trim().length >= 2 && <View style={styles.results}>{found.isLoading ? <Text style={styles.empty}>Aranıyor…</Text> : found.data?.length ? found.data.map((profile) => {
-      const relationship = relationshipByProfile.get(profile.id);
-      if (relationship?.direction === 'friend') return <ProfileRow key={profile.id} profile={profile} onPress={() => router.push(`/profile/${profile.id}` as Href)} action={<View style={styles.relationBadge}><Ionicons name="checkmark" size={13} color={colors.success} /><Text style={styles.relationText}>Arkadaşın</Text></View>} />;
-      if (relationship?.direction === 'outgoing') return <ProfileRow key={profile.id} profile={profile} onPress={() => router.push(`/profile/${profile.id}` as Href)} action={<View style={styles.relationBadge}><Text style={styles.relationText}>İstek gönderildi</Text></View>} />;
-      if (relationship?.direction === 'incoming') return <ProfileRow key={profile.id} profile={profile} onPress={() => router.push(`/profile/${profile.id}` as Href)} action={<MotionPressable disabled={respond.isPending} onPress={() => respond.mutate({ id: relationship.id, status: 'accepted' })} style={styles.primarySmall}><Text style={styles.primarySmallText}>Kabul et</Text></MotionPressable>} />;
-      return <ProfileRow key={profile.id} profile={profile} onPress={() => router.push(`/profile/${profile.id}` as Href)} action={<MotionPressable disabled={send.isPending} onPress={() => send.mutate(profile.id)} style={styles.primarySmall}><Text style={styles.primarySmallText}>Ekle</Text></MotionPressable>} />;
-    }) : <Text style={styles.empty}>Kullanıcı bulunamadı.</Text>}</View>}
-    {friendships.isError ? <Text style={styles.error}>Arkadaşlar yüklenemedi. Yeni migration’ı çalıştırıp tekrar dene.</Text> : <FlatList data={list} keyExtractor={(item) => item.id} contentContainerStyle={styles.list} renderItem={({ item }) => item.kind === 'header' ? <Text style={styles.section}>{item.title}</Text> : item.kind === 'empty' ? <Text style={styles.emptyRow}>{item.text}</Text> : <FriendRow row={item.friendship} onRespond={(status) => respond.mutate({ id: item.friendship.id, status })} onRemove={() => remove.mutate(item.friendship.id)} />} />}
-  </View>;
+  return (
+    <View style={styles.root}>
+      <Header />
+      <View style={styles.searchWrap}>
+        <Ionicons name="search" size={18} color={colors.muted} />
+        <TextInput
+          value={search}
+          onChangeText={setSearch}
+          autoCapitalize="none"
+          placeholder={en ? 'Search username or name' : 'Kullanıcı adı veya isim ara'}
+          placeholderTextColor={colors.muted}
+          style={styles.search}
+        />
+      </View>
+      {search.trim().length >= 2 && (
+        <View style={styles.results}>
+          {found.isLoading ? (
+            <Text style={styles.empty}>{en ? 'Searching…' : 'Aranıyor…'}</Text>
+          ) : found.data?.length ? (
+            found.data.map((profile) => {
+              const relationship = relationshipByProfile.get(profile.id);
+              if (relationship?.direction === 'friend') {
+                return (
+                  <ProfileRow
+                    key={profile.id}
+                    profile={profile}
+                    onPress={() => router.push(`/profile/${profile.id}` as Href)}
+                    action={
+                      <View style={styles.relationBadge}>
+                        <Ionicons name="checkmark" size={13} color={colors.success} />
+                        <Text style={styles.relationText}>{en ? 'Friend' : 'Arkadaşın'}</Text>
+                      </View>
+                    }
+                  />
+                );
+              }
+              if (relationship?.direction === 'outgoing') {
+                return (
+                  <ProfileRow
+                    key={profile.id}
+                    profile={profile}
+                    onPress={() => router.push(`/profile/${profile.id}` as Href)}
+                    action={
+                      <View style={styles.relationBadge}>
+                        <Text style={styles.relationText}>{en ? 'Request sent' : 'İstek gönderildi'}</Text>
+                      </View>
+                    }
+                  />
+                );
+              }
+              if (relationship?.direction === 'incoming') {
+                return (
+                  <ProfileRow
+                    key={profile.id}
+                    profile={profile}
+                    onPress={() => router.push(`/profile/${profile.id}` as Href)}
+                    action={
+                      <MotionPressable disabled={respond.isPending} onPress={() => respond.mutate({ id: relationship.id, status: 'accepted' })} style={styles.primarySmall}>
+                        <Text style={styles.primarySmallText}>{en ? 'Accept' : 'Kabul et'}</Text>
+                      </MotionPressable>
+                    }
+                  />
+                );
+              }
+              return (
+                <ProfileRow
+                  key={profile.id}
+                  profile={profile}
+                  onPress={() => router.push(`/profile/${profile.id}` as Href)}
+                  action={
+                    <MotionPressable disabled={send.isPending} onPress={() => send.mutate(profile.id)} style={styles.primarySmall}>
+                      <Text style={styles.primarySmallText}>{en ? 'Add' : 'Ekle'}</Text>
+                    </MotionPressable>
+                  }
+                />
+              );
+            })
+          ) : (
+            <Text style={styles.empty}>{en ? 'User not found.' : 'Kullanıcı bulunamadı.'}</Text>
+          )}
+        </View>
+      )}
+      {friendships.isError ? (
+        <Text style={styles.error}>{en ? 'Could not load friends. Please try again later.' : 'Arkadaşlar yüklenemedi. Lütfen daha sonra tekrar dene.'}</Text>
+      ) : (
+        <FlatList
+          data={list}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.list}
+          renderItem={({ item }) =>
+            item.kind === 'header' ? (
+              <Text style={styles.section}>{item.title}</Text>
+            ) : item.kind === 'empty' ? (
+              <Text style={styles.emptyRow}>{item.text}</Text>
+            ) : (
+              <FriendRow
+                row={item.friendship}
+                onRespond={(status) => respond.mutate({ id: item.friendship.id, status })}
+                onRemove={() => remove.mutate(item.friendship.id)}
+              />
+            )
+          }
+        />
+      )}
+    </View>
+  );
 }
 
-function section(title: string, key: string, rows: Friendship[], empty: string): Row[] { const emptyRow: Row = { kind: 'empty', id: `e-${key}`, text: empty }; return [{ kind: 'header', id: `h-${key}`, title }, ...(rows.length ? rows.map((friendship): Row => ({ kind: 'friend', id: friendship.id, friendship })) : [emptyRow])]; }
-function Header({ title = 'Arkadaşlar' }: { title?: string }) { return <View style={styles.header}><Pressable onPress={() => router.back()} style={styles.back}><Ionicons name="chevron-back" size={22} color={colors.text} /></Pressable><View><Text style={styles.kicker}>SOSYAL</Text><Text style={styles.title}>{title}</Text></View></View>; }
+function section(title: string, key: string, rows: Friendship[], empty: string): Row[] {
+  const emptyRow: Row = { kind: 'empty', id: `e-${key}`, text: empty };
+  return [{ kind: 'header', id: `h-${key}`, title }, ...(rows.length ? rows.map((friendship): Row => ({ kind: 'friend', id: friendship.id, friendship })) : [emptyRow])];
+}
+
+function Header({ title, kicker }: { title?: string; kicker?: string }) {
+  const en = useProfileStore((state) => state.language) === 'en';
+  return (
+    <View style={styles.header}>
+      <Pressable onPress={() => router.back()} style={styles.back}>
+        <Ionicons name="chevron-back" size={22} color={colors.text} />
+      </Pressable>
+      <View>
+        <Text style={styles.kicker}>{kicker ?? (en ? 'SOCIAL' : 'SOSYAL')}</Text>
+        <Text style={styles.title}>{title ?? (en ? 'Friends' : 'Arkadaşlar')}</Text>
+      </View>
+    </View>
+  );
+}
+
 function FriendRow({ row, onRespond, onRemove }: { row: Friendship; onRespond: (status: 'accepted' | 'declined') => void; onRemove: () => void }) {
-  const action = row.direction === 'incoming' ? <View style={styles.actions}><MotionPressable onPress={() => onRespond('accepted')} style={styles.primarySmall}><Text style={styles.primarySmallText}>Kabul</Text></MotionPressable><MotionPressable onPress={() => onRespond('declined')} style={styles.ghost}><Text style={styles.ghostText}>Reddet</Text></MotionPressable></View> : row.direction === 'outgoing' ? <MotionPressable onPress={onRemove} style={styles.ghost}><Text style={styles.ghostText}>İptal</Text></MotionPressable> : <View style={styles.actions}><Ionicons name="chevron-forward" size={18} color={colors.muted} /><MotionPressable onPress={onRemove} style={styles.remove}><Ionicons name="person-remove-outline" size={15} color={colors.primary} /></MotionPressable></View>;
+  const en = useProfileStore((state) => state.language) === 'en';
+  const action =
+    row.direction === 'incoming' ? (
+      <View style={styles.actions}>
+        <MotionPressable onPress={() => onRespond('accepted')} style={styles.primarySmall}>
+          <Text style={styles.primarySmallText}>{en ? 'Accept' : 'Kabul'}</Text>
+        </MotionPressable>
+        <MotionPressable onPress={() => onRespond('declined')} style={styles.ghost}>
+          <Text style={styles.ghostText}>{en ? 'Decline' : 'Reddet'}</Text>
+        </MotionPressable>
+      </View>
+    ) : row.direction === 'outgoing' ? (
+      <MotionPressable onPress={onRemove} style={styles.ghost}>
+        <Text style={styles.ghostText}>{en ? 'Cancel' : 'İptal'}</Text>
+      </MotionPressable>
+    ) : (
+      <View style={styles.actions}>
+        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+        <MotionPressable onPress={onRemove} style={styles.remove}>
+          <Ionicons name="person-remove-outline" size={15} color={colors.primary} />
+        </MotionPressable>
+      </View>
+    );
   return <ProfileRow profile={row.profile} onPress={row.direction === 'friend' ? () => router.push(`/profile/${row.profile.id}` as Href) : undefined} action={action} />;
 }
+
 function ProfileRow({ profile, action, onPress }: { profile: PublicProfile; action: React.ReactNode; onPress?: () => void }) {
   const initials = `${profile.firstName[0] ?? profile.username[0] ?? 'E'}${profile.lastName[0] ?? ''}`.toUpperCase();
-  return <Pressable disabled={!onPress} onPress={onPress} style={styles.row}><View style={styles.person}>{profile.avatarUrl ? <Image source={{ uri: profile.avatarUrl }} style={styles.avatar} /> : <View style={styles.avatarFallback}><Text style={styles.initials}>{initials}</Text></View>}<View style={styles.copy}><Text style={styles.name}>{`${profile.firstName} ${profile.lastName}`.trim() || 'Episode'}</Text>{profile.username ? <Text style={styles.username}>@{profile.username}</Text> : null}</View></View>{action}</Pressable>;
+  return (
+    <Pressable disabled={!onPress} onPress={onPress} style={styles.row}>
+      <View style={styles.person}>
+        {profile.avatarUrl ? (
+          <Image source={{ uri: profile.avatarUrl }} style={styles.avatar} />
+        ) : (
+          <View style={styles.avatarFallback}>
+            <Text style={styles.initials}>{initials}</Text>
+          </View>
+        )}
+        <View style={styles.copy}>
+          <Text style={styles.name}>{`${profile.firstName} ${profile.lastName}`.trim() || 'Episode'}</Text>
+          {profile.username ? <Text style={styles.username}>@{profile.username}</Text> : null}
+        </View>
+      </View>
+      {action}
+    </Pressable>
+  );
 }
 
 const styles = StyleSheet.create({

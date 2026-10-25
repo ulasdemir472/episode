@@ -5,9 +5,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/components/Screen';
 import { MotionPressable } from '@/components/MotionPressable';
 import { useAuth } from '@/features/auth/AuthProvider';
+import { useProfileStore } from '@/store/profile-store';
 import { colors, radius, spacing } from '@/theme/tokens';
 
 export default function ResetPasswordScreen() {
+  const en = useProfileStore((state) => state.language) === 'en';
   const auth = useAuth();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -20,11 +22,11 @@ export default function ResetPasswordScreen() {
 
   const handleUpdatePassword = async () => {
     if (!isMinLength) {
-      Alert.alert('Geçersiz şifre', 'Şifren en az 6 karakterden oluşmalıdır.');
+      Alert.alert(en ? 'Invalid password' : 'Geçersiz şifre', en ? 'Password must be at least 6 characters.' : 'Şifren en az 6 karakterden oluşmalıdır.');
       return;
     }
     if (!isMatching) {
-      Alert.alert('Şifreler eşleşmiyor', 'Girdiğin şifreler birbiriyle uyuşmuyor.');
+      Alert.alert(en ? 'Passwords do not match' : 'Şifreler eşleşmiyor', en ? 'The passwords entered do not match.' : 'Girdiğin şifreler birbiriyle uyuşmuyor.');
       return;
     }
 
@@ -33,16 +35,16 @@ export default function ResetPasswordScreen() {
     setSubmitting(false);
 
     if (result.error) {
-      Alert.alert('Şifre güncellenemedi', result.error);
+      Alert.alert(en ? 'Could not update password' : 'Şifre güncellenemedi', result.error);
       return;
     }
 
     Alert.alert(
-      'Şifren yenilendi',
-      'Yeni şifren başarıyla kaydedildi.',
+      en ? 'Password updated' : 'Şifren yenilendi',
+      en ? 'Your new password has been saved successfully.' : 'Yeni şifren başarıyla kaydedildi.',
       [
         {
-          text: 'Tamam',
+          text: en ? 'OK' : 'Tamam',
           onPress: () => {
             if (auth.user) {
               router.replace('/(tabs)');
@@ -76,17 +78,19 @@ export default function ResetPasswordScreen() {
       </View>
 
       <View style={styles.body}>
-        <Text style={styles.kicker}>GÜVENLİK</Text>
-        <Text style={styles.title}>Yeni şifre belirle</Text>
+        <Text style={styles.kicker}>{en ? 'SECURITY' : 'GÜVENLİK'}</Text>
+        <Text style={styles.title}>{en ? 'Set new password' : 'Yeni şifre belirle'}</Text>
         <Text style={styles.subtitle}>
-          Hesabını korumak için en az 6 karakterli güçlü yeni bir şifre gir.
+          {en
+            ? 'Enter a strong new password of at least 6 characters to protect your account.'
+            : 'Hesabını korumak için en az 6 karakterli güçlü yeni bir şifre gir.'}
         </Text>
 
         <View style={styles.inputWrapper}>
           <TextInput
             value={password}
             onChangeText={setPassword}
-            placeholder="Yeni şifre"
+            placeholder={en ? 'New password' : 'Yeni şifre'}
             placeholderTextColor={colors.muted}
             secureTextEntry={!showPassword}
             textContentType="newPassword"
@@ -108,7 +112,7 @@ export default function ResetPasswordScreen() {
           <TextInput
             value={confirmPassword}
             onChangeText={setConfirmPassword}
-            placeholder="Yeni şifre (Tekrar)"
+            placeholder={en ? 'Confirm new password' : 'Yeni şifre (Tekrar)'}
             placeholderTextColor={colors.muted}
             secureTextEntry={!showPassword}
             textContentType="newPassword"
@@ -124,7 +128,7 @@ export default function ResetPasswordScreen() {
               color={isMinLength ? colors.success : colors.muted}
             />
             <Text style={[styles.criterionText, isMinLength && styles.criterionMet]}>
-              En az 6 karakter
+              {en ? 'At least 6 characters' : 'En az 6 karakter'}
             </Text>
           </View>
           <View style={styles.criterionRow}>
@@ -134,7 +138,7 @@ export default function ResetPasswordScreen() {
               color={isMatching ? colors.success : colors.muted}
             />
             <Text style={[styles.criterionText, isMatching && styles.criterionMet]}>
-              Şifreler eşleşiyor
+              {en ? 'Passwords match' : 'Şifreler eşleşiyor'}
             </Text>
           </View>
         </View>
@@ -147,12 +151,12 @@ export default function ResetPasswordScreen() {
           {submitting ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.submitText}>Şifreyi Güncelle</Text>
+            <Text style={styles.submitText}>{en ? 'Update Password' : 'Şifreyi Güncelle'}</Text>
           )}
         </MotionPressable>
 
         <MotionPressable onPress={handleGoBack} style={styles.cancelButton}>
-          <Text style={styles.cancelText}>Vazgeç</Text>
+          <Text style={styles.cancelText}>{en ? 'Cancel' : 'Vazgeç'}</Text>
         </MotionPressable>
       </View>
     </Screen>

@@ -39,19 +39,20 @@ function parseMedia(data?: string): Media | undefined {
   }
 }
 
-const EpisodeRow = memo(function EpisodeRow({ episode, imdb, watched, onToggle }: {
+const EpisodeRow = memo(function EpisodeRow({ episode, imdb, watched, onToggle, en }: {
   episode: EpisodeDetails;
   imdb?: string;
   watched: boolean;
   onToggle: (season: number, episode: number) => void;
+  en: boolean;
 }) {
   return <View style={[styles.episode, watched && styles.episodeWatched]}>
     {episode.stillUrl ? <Image source={{ uri: episode.stillUrl }} style={styles.still} /> : <View style={[styles.still, styles.stillFallback]}><Ionicons name="film-outline" size={24} color={colors.muted} /></View>}
-    <View style={styles.episodeInfo}><Text style={styles.episodeNo}>BÖLÜM {episode.number}</Text><Text style={styles.episodeTitle} numberOfLines={2}>{episode.title}</Text><View style={styles.episodeMeta}><Text style={styles.episodeMetaText}>{episode.runtime ? `${episode.runtime} dk` : episode.airDate?.slice(0, 4)}</Text><Ionicons name="star" color={colors.warning} size={11} /><Text style={styles.episodeMetaText}>{episode.tmdbRating} TMDB</Text>{imdb && <Text style={styles.miniImdb}>IMDb {imdb}</Text>}</View></View>
+    <View style={styles.episodeInfo}><Text style={styles.episodeNo}>{en ? `EPISODE ${episode.number}` : `BÖLÜM ${episode.number}`}</Text><Text style={styles.episodeTitle} numberOfLines={2}>{episode.title}</Text><View style={styles.episodeMeta}><Text style={styles.episodeMetaText}>{episode.runtime ? `${episode.runtime} ${en ? 'min' : 'dk'}` : episode.airDate?.slice(0, 4)}</Text><Ionicons name="star" color={colors.warning} size={11} /><Text style={styles.episodeMetaText}>{episode.tmdbRating} TMDB</Text>{imdb && <Text style={styles.miniImdb}>IMDb {imdb}</Text>}</View></View>
     <Pressable
       accessibilityRole="checkbox"
       accessibilityState={{ checked: watched }}
-      accessibilityLabel={`${episode.number}. bölümü izlendi işaretle`}
+      accessibilityLabel={en ? `Mark episode ${episode.number} as watched` : `${episode.number}. bölümü izlendi işaretle`}
       hitSlop={8}
       onPress={() => {
         void Haptics.selectionAsync();
@@ -65,6 +66,7 @@ const EpisodeRow = memo(function EpisodeRow({ episode, imdb, watched, onToggle }
 });
 
 export default function MediaDetailScreen() {
+  const en = useProfileStore((state) => state.language) === 'en';
   const params = useLocalSearchParams<{ data?: string; tutorialTarget?: string }>();
   const auth = useAuth();
   const media = useMemo(() => parseMedia(params.data), [params.data]);
@@ -147,12 +149,18 @@ export default function MediaDetailScreen() {
       toggleEpisode(media, episodeSeason, episodeNumber, seasons, runtimeMinutes);
       return;
     }
-    Alert.alert('Önceki bölümler izlenmemiş', `Bu bölümden önce izlenmemiş ${missingBefore} bölüm var. Buraya kadar hepsini izlendi olarak işaretleyelim mi?`, [
-      { text: 'İptal', style: 'cancel' },
-      { text: 'Sadece bu bölüm', onPress: () => toggleEpisode(media, episodeSeason, episodeNumber, seasons, runtimeMinutes) },
-      { text: 'Buraya kadar hepsi', onPress: () => markThrough(media, episodeSeason, episodeNumber, seasons, seriesQuery.data?.episodeRunTime) },
-    ]);
-  }, [auth.user, episodesQuery.data, markThrough, media, seasons, seriesQuery.data?.episodeRunTime, toggleEpisode]);
+    Alert.alert(
+      en ? 'Previous episodes not watched' : 'Önceki bölümler izlenmemiş',
+      en
+        ? `There are ${missingBefore} unwatched episodes before this one. Mark all of them as watched?`
+        : `Bu bölümden önce izlenmemiş ${missingBefore} bölüm var. Buraya kadar hepsini izlendi olarak işaretleyelim mi?`,
+      [
+        { text: en ? 'Cancel' : 'İptal', style: 'cancel' },
+        { text: en ? 'Just this episode' : 'Sadece bu bölüm', onPress: () => toggleEpisode(media, episodeSeason, episodeNumber, seasons, runtimeMinutes) },
+        { text: en ? 'Mark all up to here' : 'Buraya kadar hepsi', onPress: () => markThrough(media, episodeSeason, episodeNumber, seasons, seriesQuery.data?.episodeRunTime) },
+      ]
+    );
+  }, [auth.user, en, episodesQuery.data, markThrough, media, seasons, seriesQuery.data?.episodeRunTime, toggleEpisode]);
 
   if (!media) return null;
   const requireUser = () => {
@@ -174,21 +182,25 @@ export default function MediaDetailScreen() {
     }
     const lastSeason = seasons[seasons.length - 1];
     if (!lastSeason) return;
-    Alert.alert('Dizinin tümünü izledin mi?', `${media.title} dizisinin ${totalEpisodes} bölümünün tamamı izlendi olarak işaretlenecek.`, [
-      { text: 'İptal', style: 'cancel' },
-      { text: 'Tümünü izledim', onPress: () => markThrough(media, lastSeason.number, lastSeason.episodeCount, seasons, seriesQuery.data?.episodeRunTime) },
-    ]);
+    Alert.alert(
+      en ? 'Did you finish the whole series?' : 'Dizinin tümünü izledin mi?',
+      en ? `All ${totalEpisodes} episodes of ${media.title} will be marked as watched.` : `${media.title} dizisinin ${totalEpisodes} bölümünün tamamı izlendi olarak işaretlenecek.`,
+      [
+        { text: en ? 'Cancel' : 'İptal', style: 'cancel' },
+        { text: en ? 'Watched all' : 'Tümünü izledim', onPress: () => markThrough(media, lastSeason.number, lastSeason.episodeCount, seasons, seriesQuery.data?.episodeRunTime) },
+      ]
+    );
   };
   const watchedCount = episodesQuery.data?.filter((episode) => watchedEpisodes[`${media.id}:${episode.seasonNumber}:${episode.number}`]).length ?? 0;
 
   return <Screen>
     <ImageBackground source={{ uri: media.backdropUrl }} style={styles.hero}>
       <LinearGradient colors={['rgba(7,7,10,.1)', colors.background]} style={StyleSheet.absoluteFill} />
-      <Pressable accessibilityLabel="Geri" onPress={() => router.back()} style={styles.back}><Ionicons name="chevron-back" color="#fff" size={24} /></Pressable>
-      <Pressable accessibilityLabel={favorite ? 'Favorilerden çıkar' : 'Favorilere ekle'} onPress={() => { if (!requireUser()) return; Haptics.selectionAsync(); toggleFavorite(media); }} style={styles.favorite}><Ionicons name={favorite ? 'heart' : 'heart-outline'} color={favorite ? colors.primary : '#fff'} size={23} /></Pressable>
+      <Pressable accessibilityLabel={en ? 'Back' : 'Geri'} onPress={() => router.back()} style={styles.back}><Ionicons name="chevron-back" color="#fff" size={24} /></Pressable>
+      <Pressable accessibilityLabel={favorite ? (en ? 'Remove from favorites' : 'Favorilerden çıkar') : (en ? 'Add to favorites' : 'Favorilere ekle')} onPress={() => { if (!requireUser()) return; Haptics.selectionAsync(); toggleFavorite(media); }} style={styles.favorite}><Ionicons name={favorite ? 'heart' : 'heart-outline'} color={favorite ? colors.primary : '#fff'} size={23} /></Pressable>
     </ImageBackground>
     <View style={styles.body}>
-      <Text style={styles.type}>{media.type === 'tv' ? 'DİZİ' : 'FİLM'} · {media.year}</Text>
+      <Text style={styles.type}>{media.type === 'tv' ? (en ? 'TV SHOW' : 'DİZİ') : (en ? 'MOVIE' : 'FİLM')} · {media.year}</Text>
       <Text style={styles.title}>{media.title}</Text>
       <View style={styles.meta}>
         <View style={styles.score}><Ionicons name="star" color={colors.warning} size={15} /><Text style={styles.rating}>{media.rating} TMDB</Text></View>
@@ -196,39 +208,39 @@ export default function MediaDetailScreen() {
       </View>
       {media.genres.length > 0 && <Text style={styles.genres}>{media.genres.join('  ·  ')}</Text>}
       <Text style={styles.overview}>{media.overview}</Text>
-      <MotionPressable style={[styles.action, saved && styles.saved]} onPress={toggleSaved}><Ionicons name={saved ? 'checkmark' : 'add'} size={21} color="#fff" /><Text style={styles.actionText}>{saved ? 'Listemde' : 'Listeme ekle'}</Text></MotionPressable>
-      <MotionPressable disabled={media.type === 'tv' && seasons.length === 0} style={[styles.watchedAction, currentStatus === 'completed' && styles.watchedActive, media.type === 'tv' && seasons.length === 0 && styles.disabled]} onPress={markTitleWatched}><Ionicons name={currentStatus === 'completed' ? 'checkmark-circle' : 'checkmark-circle-outline'} size={21} color={currentStatus === 'completed' ? '#fff' : colors.text} /><Text style={styles.watchedText}>{currentStatus === 'completed' ? (media.type === 'movie' ? 'İzlendi · Geri al' : 'İzlendi') : media.type === 'movie' ? 'İzledim' : 'Tümünü izledim'}</Text></MotionPressable>
-      {media.type === 'tv' && saved && currentStatus !== 'completed' && <MotionPressable style={styles.dropAction} onPress={() => { if (requireUser()) upsert(media, currentStatus === 'dropped' ? 'watching' : 'dropped'); }}><Ionicons name={currentStatus === 'dropped' ? 'play-outline' : 'stop-circle-outline'} size={18} color={currentStatus === 'dropped' ? colors.success : colors.muted} /><Text style={[styles.dropText, currentStatus === 'dropped' && styles.resumeText]}>{currentStatus === 'dropped' ? 'İzlemeye devam et' : 'İzlemeyi bıraktım'}</Text></MotionPressable>}
+      <MotionPressable style={[styles.action, saved && styles.saved]} onPress={toggleSaved}><Ionicons name={saved ? 'checkmark' : 'add'} size={21} color="#fff" /><Text style={styles.actionText}>{saved ? (en ? 'In my list' : 'Listemde') : (en ? 'Add to list' : 'Listeme ekle')}</Text></MotionPressable>
+      <MotionPressable disabled={media.type === 'tv' && seasons.length === 0} style={[styles.watchedAction, currentStatus === 'completed' && styles.watchedActive, media.type === 'tv' && seasons.length === 0 && styles.disabled]} onPress={markTitleWatched}><Ionicons name={currentStatus === 'completed' ? 'checkmark-circle' : 'checkmark-circle-outline'} size={21} color={currentStatus === 'completed' ? '#fff' : colors.text} /><Text style={styles.watchedText}>{currentStatus === 'completed' ? (media.type === 'movie' ? (en ? 'Watched · Undo' : 'İzlendi · Geri al') : (en ? 'Watched' : 'İzlendi')) : media.type === 'movie' ? (en ? 'Watched' : 'İzledim') : (en ? 'Watched all' : 'Tümünü izledim')}</Text></MotionPressable>
+      {media.type === 'tv' && saved && currentStatus !== 'completed' && <MotionPressable style={styles.dropAction} onPress={() => { if (requireUser()) upsert(media, currentStatus === 'dropped' ? 'watching' : 'dropped'); }}><Ionicons name={currentStatus === 'dropped' ? 'play-outline' : 'stop-circle-outline'} size={18} color={currentStatus === 'dropped' ? colors.success : colors.muted} /><Text style={[styles.dropText, currentStatus === 'dropped' && styles.resumeText]}>{currentStatus === 'dropped' ? (en ? 'Resume watching' : 'İzlemeye devam et') : (en ? 'Dropped' : 'İzlemeyi bıraktım')}</Text></MotionPressable>}
 
       {media.type === 'tv' && <>
         <View style={styles.rule} />
-        <View style={styles.sectionRow}><View><Text style={styles.section}>Bölümler</Text>{activeSeason && <Text style={styles.progressText}>{watchedCount}/{episodesQuery.data?.length ?? 0} izlendi</Text>}</View></View>
+        <View style={styles.sectionRow}><View><Text style={styles.section}>{en ? 'Episodes' : 'Bölümler'}</Text>{activeSeason && <Text style={styles.progressText}>{watchedCount}/{episodesQuery.data?.length ?? 0} {en ? 'watched' : 'izlendi'}</Text>}</View></View>
         {seriesQuery.isLoading ? <ActivityIndicator color={colors.primary} style={styles.loader} /> :
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.seasons}>
-            {seriesQuery.data?.seasons.map((item) => <MotionPressable key={item.id} onPress={() => setSeason(item.number)} style={[styles.season, activeSeason === item.number && styles.seasonActive]}><Text style={[styles.seasonText, activeSeason === item.number && styles.seasonTextActive]}>{item.number}. Sezon</Text><Text style={[styles.seasonCount, activeSeason === item.number && styles.seasonTextActive]}>{item.episodeCount} bölüm</Text></MotionPressable>)}
+            {seriesQuery.data?.seasons.map((item) => <MotionPressable key={item.id} onPress={() => setSeason(item.number)} style={[styles.season, activeSeason === item.number && styles.seasonActive]}><Text style={[styles.seasonText, activeSeason === item.number && styles.seasonTextActive]}>{item.number}. {en ? 'Season' : 'Sezon'}</Text><Text style={[styles.seasonCount, activeSeason === item.number && styles.seasonTextActive]}>{item.episodeCount} {en ? 'episodes' : 'bölüm'}</Text></MotionPressable>)}
           </ScrollView>}
-        {episodesQuery.isLoading ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : episodesQuery.isError ? <Text style={styles.error}>Bölümler yüklenemedi. API anahtarını ve bağlantını kontrol et.</Text> :
+        {episodesQuery.isLoading ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : episodesQuery.isError ? <Text style={styles.error}>{en ? 'Could not load episodes. Check your API key and connection.' : 'Bölümler yüklenemedi. API anahtarını ve bağlantını kontrol et.'}</Text> :
           <View style={styles.episodes}>{episodesQuery.data?.map((episode) => {
             const key = `${media.id}:${episode.seasonNumber}:${episode.number}`;
             const watched = Boolean(watchedEpisodes[key]);
             const imdb = imdbEpisodesQuery.data?.[episode.number];
-            return <EpisodeRow key={episode.id} episode={episode} imdb={imdb} watched={watched} onToggle={handleEpisodePress} />;
+            return <EpisodeRow key={episode.id} episode={episode} imdb={imdb} watched={watched} onToggle={handleEpisodePress} en={en} />;
           })}</View>}
         {!!episodesQuery.data?.length && <View style={styles.discussionPicker}>
-          <Text style={styles.discussionLabel}>Bölüm yorumu seç</Text>
+          <Text style={styles.discussionLabel}>{en ? 'Select episode for reviews' : 'Bölüm yorumu seç'}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.discussionChips}>
-            {episodesQuery.data.map((episode) => <MotionPressable key={`discussion-${episode.id}`} onPress={() => setSocialEpisode(episode)} style={[styles.discussionChip, socialEpisode?.id === episode.id && styles.discussionChipActive]}><Ionicons name="chatbubble-outline" size={13} color={socialEpisode?.id === episode.id ? '#fff' : colors.muted} /><Text style={[styles.discussionChipText, socialEpisode?.id === episode.id && styles.discussionChipTextActive]}>B{episode.number}</Text></MotionPressable>)}
+            {episodesQuery.data.map((episode) => <MotionPressable key={`discussion-${episode.id}`} onPress={() => setSocialEpisode(episode)} style={[styles.discussionChip, socialEpisode?.id === episode.id && styles.discussionChipActive]}><Ionicons name="chatbubble-outline" size={13} color={socialEpisode?.id === episode.id ? '#fff' : colors.muted} /><Text style={[styles.discussionChipText, socialEpisode?.id === episode.id && styles.discussionChipTextActive]}>{en ? 'E' : 'B'}{episode.number}</Text></MotionPressable>)}
           </ScrollView>
         </View>}
-        {socialEpisode && <CommunityPanel targetKey={`episode:${media.id}:${socialEpisode.seasonNumber}:${socialEpisode.number}`} title={`S${socialEpisode.seasonNumber} B${socialEpisode.number} · Puanlar ve yorumlar`} canReview={Boolean(watchedEpisodes[`${media.id}:${socialEpisode.seasonNumber}:${socialEpisode.number}`])} />}
+        {socialEpisode && <CommunityPanel targetKey={`episode:${media.id}:${socialEpisode.seasonNumber}:${socialEpisode.number}`} title={`S${socialEpisode.seasonNumber} ${en ? 'E' : 'B'}${socialEpisode.number} · ${en ? 'Ratings & reviews' : 'Puanlar ve yorumlar'}`} canReview={Boolean(watchedEpisodes[`${media.id}:${socialEpisode.seasonNumber}:${socialEpisode.number}`])} />}
       </>}
       <ScrollFocusTarget active={params.tutorialTarget === 'comments'}>
         <CommunityPanel targetKey={`media:${media.type}:${media.id}`} canReview={media.type === 'movie' ? currentStatus === 'completed' : currentStatus === 'completed' || hasWatchedEpisode} />
       </ScrollFocusTarget>
       {!!recommendationsQuery.data?.length && <View style={styles.similar}>
         <View style={styles.rule} />
-        <Text style={styles.section}>Buna benzer yapımlar</Text>
-        <Text style={styles.similarSubtitle}>{media.title} hoşuna gittiyse bunlara da göz at.</Text>
+        <Text style={styles.section}>{en ? 'Similar titles' : 'Buna benzer yapımlar'}</Text>
+        <Text style={styles.similarSubtitle}>{en ? `If you liked ${media.title}, check these out.` : `${media.title} hoşuna gittiyse bunlara da göz at.`}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.similarList}>
           {recommendationsQuery.data.map((item) => <MediaCard key={`${item.type}-${item.id}`} media={item} width={138} />)}
         </ScrollView>

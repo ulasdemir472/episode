@@ -43,7 +43,7 @@ export default function LibraryScreen() {
         return <MotionPressable key={item.value} style={[styles.filter, filter === item.value && styles.active]} onPress={() => setFilter(item.value)}><Text style={[styles.filterText, filter === item.value && styles.activeText]}>{en ? item.en : item.tr}</Text><View style={[styles.count, filter === item.value && styles.activeCount]}><Text style={[styles.countText, filter === item.value && styles.activeCountText]}>{count}</Text></View></MotionPressable>;
       })}
     </ScrollView>
-    <FlatList scrollEnabled={false} data={items} keyExtractor={(item) => `${item.status}-${item.media.id}`} numColumns={2} columnWrapperStyle={styles.row} contentContainerStyle={styles.grid} renderItem={({ item }) => <LibraryMediaCard item={item} />} ListEmptyComponent={<View style={styles.emptyBox}><Text style={styles.emptyTitle}>Burada henüz bir şey yok</Text><Text style={styles.empty}>Bir dizinin bölümünü işaretlediğinde otomatik olarak “İzliyorum” listesine taşınır.</Text></View>} />
+    <FlatList scrollEnabled={false} data={items} keyExtractor={(item) => `${item.status}-${item.media.id}`} numColumns={2} columnWrapperStyle={styles.row} contentContainerStyle={styles.grid} renderItem={({ item }) => <LibraryMediaCard item={item} />} ListEmptyComponent={<View style={styles.emptyBox}><Text style={styles.emptyTitle}>{en ? 'Nothing here yet' : 'Burada henüz bir şey yok'}</Text><Text style={styles.empty}>{en ? 'When you mark an episode as watched, it will automatically move to your "Watching" list.' : 'Bir dizinin bölümünü işaretlediğinde otomatik olarak “İzliyorum” listesine taşınır.'}</Text></View>} />
   </Screen>;
 }
 

@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { colors, radius, spacing } from '@/theme/tokens';
 
 const levelNames = ['İlk rozet yolda', 'Sahne Avcısı', 'Maratoncu', 'Gece Kuşu', 'Bölüm Ustası', 'Ekran Efsanesi', 'Kare Koleksiyoncusu', 'Kurgu Bilgesi', 'Zaman Bükücü', 'İzleme Titanı'];
+const levelNamesEn = ['First badge awaits', 'Scene Hunter', 'Marathoner', 'Night Owl', 'Episode Master', 'Screen Legend', 'Frame Collector', 'Plot Sage', 'Time Bender', 'Watch Titan'];
 const palettes = [
   ['#35343C', '#1C1B21'],
   ['#B76E3C', '#6C3524'],
@@ -33,16 +34,16 @@ export function WatchLevelBadge({ minutes, isLoading, language = 'tr' }: { minut
   const [showInfo, setShowInfo] = useState(false);
   const { hours, level, progress, nextHours } = getWatchLevel(minutes);
   const palette = palettes[Math.min(level, palettes.length - 1)]!;
-  const title = levelNames[Math.min(level, levelNames.length - 1)]!;
-  const remaining = Math.max(0, Math.ceil(nextHours - hours));
   const en = language === 'en';
+  const title = (en ? levelNamesEn : levelNames)[Math.min(level, levelNames.length - 1)]!;
+  const remaining = Math.max(0, Math.ceil(nextHours - hours));
   return <View style={styles.wrapper}><Pressable accessibilityRole="button" accessibilityLabel={en ? 'Show level calculation' : 'Seviye hesaplamasını göster'} onPress={() => setShowInfo((current) => !current)}><LinearGradient colors={palette} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.root}>
     <View style={styles.shine} />
     <Ionicons name="information-circle-outline" size={16} color="rgba(255,255,255,.72)" style={styles.infoIcon} />
     <View style={styles.icon}><Ionicons name={level > 0 ? 'medal' : 'sparkles'} size={25} color={level > 0 ? '#FFF4C8' : colors.muted} /></View>
     <View style={styles.copy}>
       <Text style={styles.kicker}>{en ? 'WATCH BADGE' : 'İZLEME ROZETİ'}</Text>
-      <Text style={styles.title}>{isLoading ? (en ? 'Calculating…' : 'Hesaplanıyor…') : en && level === 0 ? 'First badge awaits' : title}</Text>
+      <Text style={styles.title}>{isLoading ? (en ? 'Calculating…' : 'Hesaplanıyor…') : title}</Text>
       <Text style={styles.detail}>{isLoading ? ' ' : level === 0 ? (en ? `${remaining} hours to Level 1` : `Seviye 1 için ${remaining} saat kaldı`) : (en ? `${Math.floor(hours)} hours watched` : `${Math.floor(hours)} saat izlendi`)}</Text>
       <View style={styles.track}><View style={[styles.fill, { width: `${isLoading ? 0 : progress}%` }]} /></View>
     </View>

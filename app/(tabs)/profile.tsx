@@ -38,7 +38,7 @@ export default function ProfileScreen() {
 
   const saveProfile = () => {
     profile.setProfileDetails({ firstName, lastName, username, avatarUrl: profile.avatarUrl });
-    Alert.alert(isEnglish ? 'Saved' : 'Kaydedildi', isEnglish ? 'Your profile will sync shortly.' : 'Profilin kisa sure icinde senkronize olacak.');
+    Alert.alert(isEnglish ? 'Saved' : 'Kaydedildi', isEnglish ? 'Your profile will sync shortly.' : 'Profilin kısa süre içinde senkronize olacak.');
   };
 
   const pickAvatar = async () => {
@@ -48,7 +48,7 @@ export default function ProfileScreen() {
     }
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert(isEnglish ? 'Permission needed' : 'Izin gerekli', isEnglish ? 'Allow photo access to choose a profile photo.' : 'Profil fotografi secmek icin fotograf erisimine izin vermelisin.');
+      Alert.alert(isEnglish ? 'Permission needed' : 'İzin gerekli', isEnglish ? 'Allow photo access to choose a profile photo.' : 'Profil fotoğrafı seçmek için fotoğraf erişimine izin vermelisin.');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -61,16 +61,16 @@ export default function ProfileScreen() {
     if (result.canceled) return;
     const asset = result.assets[0];
     if (!asset?.base64) {
-      Alert.alert(isEnglish ? 'Photo could not be read' : 'Fotograf okunamadi', isEnglish ? 'Please try another image.' : 'Baska bir gorsel dene.');
+      Alert.alert(isEnglish ? 'Photo could not be read' : 'Fotoğraf okunamadı', isEnglish ? 'Please try another image.' : 'Başka bir görsel dene.');
       return;
     }
     setAvatarUploading(true);
     try {
       const publicUrl = await uploadAvatar({ userId: auth.user.id, base64: asset.base64, mimeType: asset.mimeType });
       profile.setAvatar(publicUrl);
-      Alert.alert(isEnglish ? 'Photo updated' : 'Fotograf guncellendi', isEnglish ? 'Your new profile photo will sync shortly.' : 'Yeni profil fotografin kisa sure icinde senkronize olacak.');
+      Alert.alert(isEnglish ? 'Photo updated' : 'Fotoğraf güncellendi', isEnglish ? 'Your new profile photo will sync shortly.' : 'Yeni profil fotoğrafın kısa süre içinde senkronize olacak.');
     } catch {
-      Alert.alert(isEnglish ? 'Upload failed' : 'Yuklenemedi', isEnglish ? 'Run the avatar storage migration and try again.' : 'Avatar storage migration dosyasini calistirip tekrar dene.');
+      Alert.alert(isEnglish ? 'Upload failed' : 'Yüklenemedi', isEnglish ? 'Run the avatar storage migration and try again.' : 'Avatar storage migration dosyasını çalıştırıp tekrar dene.');
     } finally {
       setAvatarUploading(false);
     }
@@ -120,9 +120,9 @@ export default function ProfileScreen() {
       <View style={styles.accountInfo}>
         <Ionicons name={auth.user ? auth.syncStatus === 'error' ? 'cloud-offline-outline' : 'cloud-done-outline' : 'cloud-offline-outline'} size={21} color={auth.user ? auth.syncStatus === 'error' ? colors.primary : colors.success : colors.warning} />
         <View style={styles.accountCopy}>
-          <Text style={styles.accountTitle}>{auth.user ? (isEnglish ? 'Account connected' : 'Hesap bagli') : (isEnglish ? 'Local profile' : 'Yerel profil')}</Text>
-          <Text style={styles.accountDetail}>{auth.user?.email ?? (isEnglish ? 'Sign in to sync across devices.' : 'Cihazlar arasi senkronizasyon icin giris yap.')}</Text>
-          {auth.user && <Text style={[styles.syncStatus, auth.syncStatus === 'error' && styles.syncError]}>{auth.syncStatus === 'syncing' ? (isEnglish ? 'Syncing...' : 'Senkronize ediliyor...') : auth.syncStatus === 'error' ? (isEnglish ? 'Connection interrupted. Retrying automatically...' : 'Baglanti kesildi. Otomatik tekrar deneniyor...') : (isEnglish ? 'Synced automatically' : 'Otomatik senkronize')}</Text>}
+          <Text style={styles.accountTitle}>{auth.user ? (isEnglish ? 'Account connected' : 'Hesap bağlı') : (isEnglish ? 'Local profile' : 'Yerel profil')}</Text>
+          <Text style={styles.accountDetail}>{auth.user?.email ?? (isEnglish ? 'Sign in to sync across devices.' : 'Cihazlar arası senkronizasyon için giriş yap.')}</Text>
+          {auth.user && <Text style={[styles.syncStatus, auth.syncStatus === 'error' && styles.syncError]}>{auth.syncStatus === 'syncing' ? (isEnglish ? 'Syncing...' : 'Senkronize ediliyor...') : auth.syncStatus === 'error' ? (isEnglish ? 'Connection interrupted. Retrying automatically...' : 'Bağlantı kesildi. Otomatik tekrar deneniyor...') : (isEnglish ? 'Synced automatically' : 'Otomatik senkronize')}</Text>}
         </View>
       </View>
       {auth.user ? (
@@ -131,12 +131,12 @@ export default function ProfileScreen() {
             <Text style={styles.accountActionText}>{isEnglish ? 'Change password' : 'Şifre değiştir'}</Text>
           </MotionPressable>
           <MotionPressable onPress={() => auth.signOut()} style={styles.accountAction}>
-            <Text style={styles.accountActionText}>{isEnglish ? 'Sign out' : 'Cikis yap'}</Text>
+            <Text style={styles.accountActionText}>{isEnglish ? 'Sign out' : 'Çıkış yap'}</Text>
           </MotionPressable>
         </View>
       ) : (
         <MotionPressable onPress={() => router.push('/auth' as Href)} style={[styles.accountAction, styles.accountActionPrimary]}>
-          <Text style={styles.accountActionPrimaryText}>{isEnglish ? 'Sign in' : 'Giris yap'}</Text>
+          <Text style={styles.accountActionPrimaryText}>{isEnglish ? 'Sign in' : 'Giriş yap'}</Text>
         </MotionPressable>
       )}
     </View>
@@ -144,23 +144,23 @@ export default function ProfileScreen() {
     <View style={styles.panel}>
       <View style={styles.panelTitle}><Ionicons name="person-outline" size={18} color={colors.primary} /><Text style={styles.heading}>{isEnglish ? 'Profile details' : 'Profil bilgileri'}</Text></View>
       <View style={styles.inputs}><TextInput value={firstName} onChangeText={setFirstName} placeholder={isEnglish ? 'First name' : 'Ad'} placeholderTextColor={colors.muted} style={styles.input} /><TextInput value={lastName} onChangeText={setLastName} placeholder={isEnglish ? 'Last name' : 'Soyad'} placeholderTextColor={colors.muted} style={styles.input} /></View>
-      <TextInput value={username} onChangeText={setUsername} autoCapitalize="none" placeholder={isEnglish ? 'Username' : 'Kullanici adi'} placeholderTextColor={colors.muted} style={styles.inputFull} />
-      <View style={styles.profileActions}><Pressable style={styles.secondaryAction} onPress={pickAvatar} disabled={avatarUploading}><Ionicons name="image-outline" size={16} color={colors.text} /><Text style={styles.secondaryActionText}>{avatarUploading ? (isEnglish ? 'Uploading...' : 'Yukleniyor...') : (isEnglish ? 'Choose photo' : 'Fotograf sec')}</Text></Pressable><Pressable style={styles.save} onPress={saveProfile}><Text style={styles.saveText}>{isEnglish ? 'Save' : 'Kaydet'}</Text></Pressable></View>
+      <TextInput value={username} onChangeText={setUsername} autoCapitalize="none" placeholder={isEnglish ? 'Username' : 'Kullanıcı adı'} placeholderTextColor={colors.muted} style={styles.inputFull} />
+      <View style={styles.profileActions}><Pressable style={styles.secondaryAction} onPress={pickAvatar} disabled={avatarUploading}><Ionicons name="image-outline" size={16} color={colors.text} /><Text style={styles.secondaryActionText}>{avatarUploading ? (isEnglish ? 'Uploading...' : 'Yükleniyor...') : (isEnglish ? 'Choose photo' : 'Fotoğraf seç')}</Text></Pressable><Pressable style={styles.save} onPress={saveProfile}><Text style={styles.saveText}>{isEnglish ? 'Save' : 'Kaydet'}</Text></Pressable></View>
     </View>
 
     <View style={styles.panel}>
       <View style={styles.panelTitle}><Ionicons name="language-outline" size={18} color={colors.primary} /><Text style={styles.heading}>{isEnglish ? 'App language' : 'Uygulama dili'}</Text></View>
-      <View style={styles.language}><Pressable style={[styles.languageOption, profile.language === 'tr' && styles.languageActive]} onPress={() => profile.setLanguage('tr')}><Text style={[styles.languageText, profile.language === 'tr' && styles.languageTextActive]}>Turkce</Text></Pressable><Pressable style={[styles.languageOption, profile.language === 'en' && styles.languageActive]} onPress={() => profile.setLanguage('en')}><Text style={[styles.languageText, profile.language === 'en' && styles.languageTextActive]}>English</Text></Pressable></View>
+      <View style={styles.language}><Pressable style={[styles.languageOption, profile.language === 'tr' && styles.languageActive]} onPress={() => profile.setLanguage('tr')}><Text style={[styles.languageText, profile.language === 'tr' && styles.languageTextActive]}>Türkçe</Text></Pressable><Pressable style={[styles.languageOption, profile.language === 'en' && styles.languageActive]} onPress={() => profile.setLanguage('en')}><Text style={[styles.languageText, profile.language === 'en' && styles.languageTextActive]}>English</Text></Pressable></View>
     </View>
 
     <ScrollFocusTarget active={params.tutorialTarget === 'friends'}>
       <FriendsPanel userId={auth.user?.id} isEnglish={isEnglish} />
     </ScrollFocusTarget>
     <View style={styles.sectionHeader}><Text style={styles.heading}>{isEnglish ? 'Profile cover' : 'Profil kapağı'}</Text>{profile.coverUrl ? <Pressable onPress={() => profile.setCover(undefined)} style={styles.removeCover}><Ionicons name="trash-outline" size={14} color={colors.primary} /><Text style={styles.removeCoverText}>{isEnglish ? 'Remove' : 'Kaldır'}</Text></Pressable> : <Text style={styles.caption}>{isEnglish ? 'Choose from your titles' : 'Yapımlarından seç'}</Text>}</View>
-    {availableMedia.length > 0 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.coverChoices}>{availableMedia.map((media) => <Pressable key={`cover-${media.type}-${media.id}`} onPress={() => profile.setCover(media.backdropUrl || media.posterUrl)} style={[styles.coverChoice, profile.coverUrl === (media.backdropUrl || media.posterUrl) && styles.coverSelected]}><Image source={{ uri: media.backdropUrl || media.posterUrl }} style={styles.coverImage} /><Text numberOfLines={1} style={styles.coverTitle}>{media.title}</Text></Pressable>)}</ScrollView> : <Text style={styles.empty}>{isEnglish ? 'Add favorites or library titles to choose a cover.' : 'Kapak secmek icin favori veya listene yapim ekle.'}</Text>}
+    {availableMedia.length > 0 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.coverChoices}>{availableMedia.map((media) => <Pressable key={`cover-${media.type}-${media.id}`} onPress={() => profile.setCover(media.backdropUrl || media.posterUrl)} style={[styles.coverChoice, profile.coverUrl === (media.backdropUrl || media.posterUrl) && styles.coverSelected]}><Image source={{ uri: media.backdropUrl || media.posterUrl }} style={styles.coverImage} /><Text numberOfLines={1} style={styles.coverTitle}>{media.title}</Text></Pressable>)}</ScrollView> : <Text style={styles.empty}>{isEnglish ? 'Add favorites or library titles to choose a cover.' : 'Kapak seçmek için favori veya listene yapım ekle.'}</Text>}
 
     <View style={styles.sectionHeader}><Text style={styles.heading}>{isEnglish ? 'My favorites' : 'Favorilerim'}</Text><Text style={styles.caption}>{profile.favorites.length}</Text></View>
-    {profile.favorites.length > 0 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.favorites}>{profile.favorites.map((media) => <MediaCard key={`${media.type}-${media.id}`} media={media} width={132} />)}</ScrollView> : <View style={styles.favoriteEmpty}><Ionicons name="heart-outline" size={28} color={colors.muted} /><Text style={styles.empty}>{isEnglish ? 'Tap the heart on a movie or show.' : 'Dizi veya film detayindaki kalbe dokun.'}</Text></View>}
+    {profile.favorites.length > 0 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.favorites}>{profile.favorites.map((media) => <MediaCard key={`${media.type}-${media.id}`} media={media} width={132} />)}</ScrollView> : <View style={styles.favoriteEmpty}><Ionicons name="heart-outline" size={28} color={colors.muted} /><Text style={styles.empty}>{isEnglish ? 'Tap the heart on a movie or show.' : 'Dizi veya film detayındaki kalbe dokun.'}</Text></View>}
 
     {auth.user && (
       <View style={styles.dangerZone}>

@@ -9,16 +9,17 @@ import { enableNotifications, notificationsAreEnabled, scheduleEpisodeReminder }
 import { useLibraryStore } from '@/store/library-store';
 import { colors, radius, spacing } from '@/theme/tokens';
 import { useAuth } from '@/features/auth/AuthProvider';
+import { useProfileStore } from '@/store/profile-store';
 import { MotionPressable } from '@/components/MotionPressable';
 
-function dateLabel(date: string) {
+function dateLabel(date: string, en: boolean) {
   const day = new Date(`${date}T12:00:00`);
   const today = new Date(); today.setHours(12, 0, 0, 0);
   const difference = Math.round((day.getTime() - today.getTime()) / 86_400_000);
-  if (difference === 0) return 'Bugün';
-  if (difference === -1) return 'Dün';
-  if (difference === 1) return 'Yarın';
-  return day.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' });
+  if (difference === 0) return en ? 'Today' : 'Bugün';
+  if (difference === -1) return en ? 'Yesterday' : 'Dün';
+  if (difference === 1) return en ? 'Tomorrow' : 'Yarın';
+  return day.toLocaleDateString(en ? 'en-US' : 'tr-TR', { day: 'numeric', month: 'long' });
 }
 
 function AnimatedEpisodeCheck({ label, onConfirm }: { label: string; onConfirm: () => Promise<boolean> }) {
@@ -51,6 +52,7 @@ function AnimatedContinueCard({ children }: { children: ReactNode }) {
 
 export default function ReleasesScreen() {
   const auth = useAuth();
+  const en = useProfileStore((state) => state.language) === 'en';
   const [now] = useState(() => Date.now());
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const items = useLibraryStore((state) => state.items);
@@ -89,15 +91,20 @@ export default function ReleasesScreen() {
     if (enabled) await Promise.all(upcoming.map((release) => {
       const planned = new Date(`${release.airDate}T12:00:00`);
       const reminder = planned.getTime() > Date.now() ? planned : new Date(Date.now() + 60_000);
-      return scheduleEpisodeReminder(release.id, `${release.show.title} yayında`, `S${release.season} · B${release.episode} “${release.title}”`, reminder);
+      return scheduleEpisodeReminder(release.id, en ? `${release.show.title} is now streaming` : `${release.show.title} yayında`, `S${release.season} · ${en ? 'E' : 'B'}${release.episode} “${release.title}”`, reminder);
     }));
-    Alert.alert(enabled ? 'Bildirimler açık' : 'Bildirim izni gerekli', enabled ? `${upcoming.length} yaklaşan bölüm için hatırlatıcılar güncellendi. Arkadaşlık istekleri ve yorum etkileşimleri de bildirilecek.` : 'Ayarlar’dan Episode için bildirim iznini açmalısın.');
+    Alert.alert(
+      enabled ? (en ? 'Notifications enabled' : 'Bildirimler açık') : (en ? 'Notification permission required' : 'Bildirim izni gerekli'),
+      enabled
+        ? (en ? `Reminders updated for ${upcoming.length} upcoming episodes. Friend requests and comment interactions will also be notified.` : `${upcoming.length} yaklaşan bölüm için hatırlatıcılar güncellendi. Arkadaşlık istekleri ve yorum etkileşimleri de bildirilecek.`)
+        : (en ? 'Please enable notification permissions for Episode in Settings.' : 'Ayarlar’dan Episode için bildirim iznini açmalısın.')
+    );
   };
 
   const renderRelease = (release: (typeof visible)[number], isUpcoming: boolean) => <Pressable key={release.id} onPress={() => router.push({ pathname: '/media/[id]', params: { id: String(release.show.id), data: JSON.stringify(release.show) } })} style={styles.item}>
     <Image source={{ uri: release.show.posterUrl }} style={styles.poster} />
-    <View style={styles.info}><Text style={styles.show}>{release.show.title}</Text><Text style={styles.episode}>S{release.season} · B{release.episode}  “{release.title}”</Text><Text style={[styles.time, isUpcoming && styles.upcoming]}>{dateLabel(release.airDate)} {isUpcoming ? 'yayınlanacak' : 'yayınlandı'}</Text></View>
-    {!isUpcoming && <Pressable accessibilityLabel="İzlendi işaretle" onPress={(event) => { event.stopPropagation(); const runtime = items.find((item) => item.media.id === release.show.id)?.progress?.runtimeMinutes; toggleEpisode(release.show, release.season, release.episode, [], runtime); }} style={styles.check}><Ionicons name="checkmark" size={20} color={colors.muted} /></Pressable>}
+    <View style={styles.info}><Text style={styles.show}>{release.show.title}</Text><Text style={styles.episode}>S{release.season} · {en ? 'E' : 'B'}${release.episode}  “{release.title}”</Text><Text style={[styles.time, isUpcoming && styles.upcoming]}>{dateLabel(release.airDate, en)} {isUpcoming ? (en ? 'airs' : 'yayınlanacak') : (en ? 'aired' : 'yayınlandı')}</Text></View>
+    {!isUpcoming && <Pressable accessibilityLabel={en ? 'Mark as watched' : 'İzlendi işaretle'} onPress={(event) => { event.stopPropagation(); const runtime = items.find((item) => item.media.id === release.show.id)?.progress?.runtimeMinutes; toggleEpisode(release.show, release.season, release.episode, [], runtime); }} style={styles.check}><Ionicons name="checkmark" size={20} color={colors.muted} /></Pressable>}
   </Pressable>;
 
   const markContinueWatched = async (item: (typeof continuingItems)[number]): Promise<boolean> => {
@@ -106,7 +113,7 @@ export default function ReleasesScreen() {
     const episodeId = `${item.media.id}:${next.season}:${next.episode}`;
     try {
       let runtime = item.progress?.runtimeMinutes;
-      let seasons = item.progress?.seasons?.map((season) => ({ id: season.number, number: season.number, name: `${season.number}. Sezon`, episodeCount: season.episodeCount })) ?? [];
+      let seasons = item.progress?.seasons?.map((season) => ({ id: season.number, number: season.number, name: `${season.number}. ${en ? 'Season' : 'Sezon'}`, episodeCount: season.episodeCount })) ?? [];
       if (seasons.length === 0) {
         const details = await catalogService.seriesDetails(item.media.id);
         seasons = details.seasons;
@@ -119,7 +126,7 @@ export default function ReleasesScreen() {
       }).catch(() => undefined);
       return true;
     } catch {
-      Alert.alert('Bölüm güncellenemedi', 'Sezon bilgisi alınamadı. Lütfen tekrar dene.');
+      Alert.alert(en ? 'Could not update episode' : 'Bölüm güncellenemedi', en ? 'Could not retrieve season information. Please try again.' : 'Sezon bilgisi alınamadı. Lütfen tekrar dene.');
       return false;
     }
   };
@@ -128,20 +135,20 @@ export default function ReleasesScreen() {
     const next = item.progress!.nextEpisode!;
     const episodeId = `${item.media.id}:${next.season}:${next.episode}`;
     return <AnimatedContinueCard key={episodeId}>
-      <Pressable accessibilityLabel={`${item.media.title} ayrıntılarını aç`} onPress={() => router.push({ pathname: '/media/[id]', params: { id: String(item.media.id), data: JSON.stringify(item.media) } })} style={styles.episodeLink}>
+      <Pressable accessibilityLabel={`${item.media.title} ${en ? 'details' : 'ayrıntılarını aç'}`} onPress={() => router.push({ pathname: '/media/[id]', params: { id: String(item.media.id), data: JSON.stringify(item.media) } })} style={styles.episodeLink}>
         <Image source={{ uri: item.media.posterUrl }} style={styles.poster} />
-        <View style={styles.info}><Text style={styles.show}>{item.media.title}</Text><Text style={styles.episode}>Kaldığın yer · S{next.season} · B{next.episode}</Text><Text style={styles.continue}>Ayrıntıya git</Text></View>
+        <View style={styles.info}><Text style={styles.show}>{item.media.title}</Text><Text style={styles.episode}>{en ? 'Continue' : 'Kaldığın yer'} · S{next.season} · {en ? 'E' : 'B'}{next.episode}</Text><Text style={styles.continue}>{en ? 'View details' : 'Ayrıntıya git'}</Text></View>
       </Pressable>
-      <AnimatedEpisodeCheck key={episodeId} label={`${item.media.title} S${next.season} B${next.episode} izlendi işaretle`} onConfirm={() => markContinueWatched(item)} />
+      <AnimatedEpisodeCheck key={episodeId} label={`${item.media.title} S${next.season} ${en ? 'E' : 'B'}${next.episode} ${en ? 'mark as watched' : 'izlendi işaretle'}`} onConfirm={() => markContinueWatched(item)} />
     </AnimatedContinueCard>;
   };
 
   return <Screen>
-    <View style={styles.header}><Text style={styles.kicker}>TAKVİMİN</Text><Text style={styles.title}>Yeni bölümler</Text><Text style={styles.subtitle}>İzlediğin dizilerin gerçek yayın takvimi.</Text><Pressable style={[styles.notify, notificationsEnabled && styles.notifyEnabled]} onPress={() => void configureNotifications()}><Ionicons name={notificationsEnabled ? 'checkmark-circle' : 'notifications-outline'} size={18} color={notificationsEnabled ? colors.success : colors.text} /><Text style={[styles.notifyText, notificationsEnabled && styles.notifyTextEnabled]}>{notificationsEnabled ? 'Bildirimler açık' : 'Bildirimleri aç'}</Text></Pressable></View>
-    {continuingItems.length > 0 && <><View style={styles.dateRow}><Text style={styles.date}>KALDIĞIN YER</Text><View style={styles.line} /></View>{continuingItems.map(renderContinue)}</>}
-    {followedShows.length === 0 ? <View style={styles.emptyBox}><Ionicons name="calendar-outline" size={34} color={colors.muted} /><Text style={styles.emptyTitle}>Takip edilen dizi yok</Text><Text style={styles.empty}>Bir dizinin bölümünü izledin olarak işaretlediğinde yayın takvimi burada görünür.</Text></View> : schedule.isLoading ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : schedule.isError ? <View style={styles.emptyBox}><Text style={styles.error}>Yayın takvimi alınamadı.</Text><Pressable onPress={() => schedule.refetch()}><Text style={styles.retry}>Tekrar dene</Text></Pressable></View> : visible.length === 0 ? <View style={styles.emptyBox}><Ionicons name="checkmark-circle-outline" size={36} color={colors.success} /><Text style={styles.emptyTitle}>Her şey güncel</Text><Text style={styles.empty}>Son 30 günde kaçırdığın veya planlanmış yeni bir bölüm yok.</Text></View> : <>
-      {aired.length > 0 && <><View style={styles.dateRow}><Text style={styles.date}>İZLENECEKLER</Text><View style={styles.line} /></View>{aired.map((release) => renderRelease(release, false))}</>}
-      {upcoming.length > 0 && <><View style={styles.dateRow}><Text style={styles.date}>YAKINDA</Text><View style={styles.line} /></View>{upcoming.map((release) => renderRelease(release, true))}</>}
+    <View style={styles.header}><Text style={styles.kicker}>{en ? 'YOUR SCHEDULE' : 'TAKVİMİN'}</Text><Text style={styles.title}>{en ? 'New episodes' : 'Yeni bölümler'}</Text><Text style={styles.subtitle}>{en ? 'Actual air dates for shows you follow.' : 'İzlediğin dizilerin gerçek yayın takvimi.'}</Text><Pressable style={[styles.notify, notificationsEnabled && styles.notifyEnabled]} onPress={() => void configureNotifications()}><Ionicons name={notificationsEnabled ? 'checkmark-circle' : 'notifications-outline'} size={18} color={notificationsEnabled ? colors.success : colors.text} /><Text style={[styles.notifyText, notificationsEnabled && styles.notifyTextEnabled]}>{notificationsEnabled ? (en ? 'Notifications on' : 'Bildirimler açık') : (en ? 'Turn on notifications' : 'Bildirimleri aç')}</Text></Pressable></View>
+    {continuingItems.length > 0 && <><View style={styles.dateRow}><Text style={styles.date}>{en ? 'CONTINUE WATCHING' : 'KALDIĞIN YER'}</Text><View style={styles.line} /></View>{continuingItems.map(renderContinue)}</>}
+    {followedShows.length === 0 ? <View style={styles.emptyBox}><Ionicons name="calendar-outline" size={34} color={colors.muted} /><Text style={styles.emptyTitle}>{en ? 'No shows followed' : 'Takip edilen dizi yok'}</Text><Text style={styles.empty}>{en ? 'When you mark a show episode as watched, its air schedule will appear here.' : 'Bir dizinin bölümünü izledin olarak işaretlediğinde yayın takvimi burada görünür.'}</Text></View> : schedule.isLoading ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : schedule.isError ? <View style={styles.emptyBox}><Text style={styles.error}>{en ? 'Could not load air schedule.' : 'Yayın takvimi alınamadı.'}</Text><Pressable onPress={() => schedule.refetch()}><Text style={styles.retry}>{en ? 'Try again' : 'Tekrar dene'}</Text></Pressable></View> : visible.length === 0 ? <View style={styles.emptyBox}><Ionicons name="checkmark-circle-outline" size={36} color={colors.success} /><Text style={styles.emptyTitle}>{en ? 'All caught up' : 'Her şey güncel'}</Text><Text style={styles.empty}>{en ? 'No missed episodes in the last 30 days or upcoming episodes scheduled.' : 'Son 30 günde kaçırdığın veya planlanmış yeni bir bölüm yok.'}</Text></View> : <>
+      {aired.length > 0 && <><View style={styles.dateRow}><Text style={styles.date}>{en ? 'TO WATCH' : 'İZLENECEKLER'}</Text><View style={styles.line} /></View>{aired.map((release) => renderRelease(release, false))}</>}
+      {upcoming.length > 0 && <><View style={styles.dateRow}><Text style={styles.date}>{en ? 'UPCOMING' : 'YAKINDA'}</Text><View style={styles.line} /></View>{upcoming.map((release) => renderRelease(release, true))}</>}
     </>}
   </Screen>;
 }

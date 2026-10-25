@@ -4,16 +4,36 @@ import { router } from 'expo-router';
 import { ProfileActivity } from '@/features/friends/friends-repository';
 import { parseReviewTarget } from '@/features/community/target';
 import { colors, spacing } from '@/theme/tokens';
+import { useProfileStore } from '@/store/profile-store';
 
 export function ProfileActivityRow({ activity }: { activity: ProfileActivity }) {
+  const en = useProfileStore((state) => state.language) === 'en';
   const target = parseReviewTarget(activity.targetKey);
-  const episode = target?.targetType === 'episode' ? ` · S${target.seasonNumber} B${target.episodeNumber}` : '';
-  const targetTitle = `${activity.media?.title ?? 'Bir yapım'}${episode}`;
-  const date = new Date(activity.createdAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' });
+  const episode = target?.targetType === 'episode' ? ` · S${target.seasonNumber} ${en ? 'E' : 'B'}${target.episodeNumber}` : '';
+  const targetTitle = `${activity.media?.title ?? (en ? 'A title' : 'Bir yapım')}${episode}`;
+  const date = new Date(activity.createdAt).toLocaleDateString(en ? 'en-US' : 'tr-TR', { day: 'numeric', month: 'short', year: 'numeric' });
   const openMedia = () => activity.media && router.push({ pathname: '/media/[id]', params: { id: String(activity.media.id), data: JSON.stringify(activity.media) } });
   return <Pressable disabled={!activity.media} onPress={openMedia} style={styles.activity}>
     <View style={[styles.activityIcon, activity.kind === 'rating' ? styles.ratingIcon : styles.commentIcon]}><Ionicons name={activity.kind === 'rating' ? 'star' : 'chatbubble-ellipses'} size={16} color={activity.kind === 'rating' ? colors.warning : colors.secondary} /></View>
-    <View style={styles.activityCopy}><Text style={styles.activityAction}>{activity.kind === 'rating' ? <><Text style={styles.activityTarget}>{targetTitle}</Text> yapımına <Text style={styles.activityScore}>{activity.score}/10</Text> puan verdi</> : <><Text style={styles.activityTarget}>{targetTitle}</Text> için yorum yaptı</>}</Text>{activity.comment ? <Text numberOfLines={3} style={styles.activityComment}>“{activity.comment}”</Text> : null}<Text style={styles.activityDate}>{date}</Text></View>
+    <View style={styles.activityCopy}>
+      <Text style={styles.activityAction}>
+        {activity.kind === 'rating' ? (
+          en ? (
+            <>Rated <Text style={styles.activityTarget}>{targetTitle}</Text> <Text style={styles.activityScore}>{activity.score}/10</Text></>
+          ) : (
+            <><Text style={styles.activityTarget}>{targetTitle}</Text> yapımına <Text style={styles.activityScore}>{activity.score}/10</Text> puan verdi</>
+          )
+        ) : (
+          en ? (
+            <>Commented on <Text style={styles.activityTarget}>{targetTitle}</Text></>
+          ) : (
+            <><Text style={styles.activityTarget}>{targetTitle}</Text> için yorum yaptı</>
+          )
+        )}
+      </Text>
+      {activity.comment ? <Text numberOfLines={3} style={styles.activityComment}>“{activity.comment}”</Text> : null}
+      <Text style={styles.activityDate}>{date}</Text>
+    </View>
     {activity.media ? <Ionicons name="chevron-forward" size={16} color={colors.muted} /> : null}
   </Pressable>;
 }

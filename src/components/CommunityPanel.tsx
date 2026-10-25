@@ -49,7 +49,7 @@ export function CommunityPanel({ targetKey, title, canReview }: { targetKey: str
 
   const chooseImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) { Alert.alert('İzin gerekli', 'Yoruma fotoğraf eklemek için fotoğraf erişimine izin vermelisin.'); return; }
+    if (!permission.granted) { Alert.alert(en ? 'Permission needed' : 'İzin gerekli', en ? 'Allow photo access to attach a photo to your comment.' : 'Yoruma fotoğraf eklemek için fotoğraf erişimine izin vermelisin.'); return; }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, quality: 0.72, base64: true });
     if (!result.canceled && result.assets[0]?.base64) setPendingImage({ uri: result.assets[0].uri, base64: result.assets[0].base64!, mimeType: result.assets[0].mimeType });
   };
@@ -66,7 +66,7 @@ export function CommunityPanel({ targetKey, title, canReview }: { targetKey: str
       await persistComment(comment);
       await queryClient.invalidateQueries({ queryKey: ['community', targetKey] });
     } catch (error) {
-      Alert.alert('Yorum gönderilemedi', error instanceof Error ? error.message : 'Bağlantını kontrol edip tekrar dene.');
+      Alert.alert(en ? 'Comment could not be sent' : 'Yorum gönderilemedi', error instanceof Error ? error.message : (en ? 'Check your connection and try again.' : 'Bağlantını kontrol edip tekrar dene.'));
     } finally { submissionLock.current.release(); setIsSubmitting(false); }
   };
 
@@ -75,7 +75,7 @@ export function CommunityPanel({ targetKey, title, canReview }: { targetKey: str
     if (!canReview) return;
     useCommunityStore.getState().rate(targetKey, score);
     try { await persistRating(auth.user.id, targetKey, score); await queryClient.invalidateQueries({ queryKey: ['community', targetKey] }); }
-    catch { Alert.alert('Puan cihazda saklandı', 'Sunucuya gönderilemedi.'); }
+    catch { Alert.alert(en ? 'Rating saved locally' : 'Puan cihazda saklandı', en ? 'Could not send to server.' : 'Sunucuya gönderilemedi.'); }
   };
 
   const like = async (comment: CommunityComment) => {
@@ -85,7 +85,7 @@ export function CommunityPanel({ targetKey, title, canReview }: { targetKey: str
     catch { await queryClient.invalidateQueries({ queryKey: ['community', targetKey] }); }
   };
 
-  const remove = (comment: CommunityComment) => Alert.alert('Yorum silinsin mi?', 'Bu işlem geri alınamaz.', [{ text: 'İptal', style: 'cancel' }, { text: 'Sil', style: 'destructive', onPress: async () => {
+  const remove = (comment: CommunityComment) => Alert.alert(en ? 'Delete comment?' : 'Yorum silinsin mi?', en ? 'This action cannot be undone.' : 'Bu işlem geri alınamaz.', [{ text: en ? 'Cancel' : 'İptal', style: 'cancel' }, { text: en ? 'Delete' : 'Sil', style: 'destructive', onPress: async () => {
     useCommunityStore.getState().removeComment(comment.id);
     queryClient.setQueryData<CommunitySnapshot>(['community', targetKey], (snapshot) => snapshot ? { ...snapshot, comments: snapshot.comments.filter((item) => item.id !== comment.id && item.parentCommentId !== comment.id) } : snapshot);
     if (auth.user) try { await softDeleteComment(auth.user.id, comment.id); useCommunityStore.getState().acknowledgeCommentDeletion(comment.id); } catch { /* retry during sync */ }
@@ -99,9 +99,9 @@ export function CommunityPanel({ targetKey, title, canReview }: { targetKey: str
     {comment.imageUrl ? <Image source={{ uri: comment.imageUrl }} style={styles.commentImage} resizeMode="cover" /> : null}
     <Text style={styles.commentText}>{comment.text === '📷' && comment.imageUrl ? '' : comment.text}</Text>
     <View style={styles.commentActions}>
-      <MotionPressable accessibilityLabel="Yorumu beğen" onPress={() => void like(comment)} style={styles.inlineAction}><Ionicons name={comment.likedByMe ? 'heart' : 'heart-outline'} size={15} color={comment.likedByMe ? colors.primary : colors.muted} /><Text style={styles.inlineText}>{comment.likeCount ?? 0}</Text></MotionPressable>
-      {!nested && <MotionPressable accessibilityLabel="Yoruma yanıt ver" onPress={() => { setReplyTo(comment); scrollToEnd(); }} style={styles.inlineAction}><Ionicons name="return-down-forward-outline" size={15} color={colors.muted} /><Text style={styles.inlineText}>{en ? 'Reply' : 'Yanıtla'}</Text></MotionPressable>}
-      {comment.authorId === auth.user?.id && <MotionPressable accessibilityLabel="Yorumu sil" onPress={() => remove(comment)} style={styles.inlineAction}><Ionicons name="trash-outline" size={14} color={colors.primary} /></MotionPressable>}
+      <MotionPressable accessibilityLabel={en ? 'Like comment' : 'Yorumu beğen'} onPress={() => void like(comment)} style={styles.inlineAction}><Ionicons name={comment.likedByMe ? 'heart' : 'heart-outline'} size={15} color={comment.likedByMe ? colors.primary : colors.muted} /><Text style={styles.inlineText}>{comment.likeCount ?? 0}</Text></MotionPressable>
+      {!nested && <MotionPressable accessibilityLabel={en ? 'Reply to comment' : 'Yoruma yanıt ver'} onPress={() => { setReplyTo(comment); scrollToEnd(); }} style={styles.inlineAction}><Ionicons name="return-down-forward-outline" size={15} color={colors.muted} /><Text style={styles.inlineText}>{en ? 'Reply' : 'Yanıtla'}</Text></MotionPressable>}
+      {comment.authorId === auth.user?.id && <MotionPressable accessibilityLabel={en ? 'Delete comment' : 'Yorumu sil'} onPress={() => remove(comment)} style={styles.inlineAction}><Ionicons name="trash-outline" size={14} color={colors.primary} /></MotionPressable>}
     </View>
     {!nested && comments.filter((item) => item.parentCommentId === comment.id).reverse().map((reply) => renderComment(reply, true))}
   </View>;
@@ -109,17 +109,17 @@ export function CommunityPanel({ targetKey, title, canReview }: { targetKey: str
   return <View style={styles.root}>
     <View style={styles.titleRow}><Text style={styles.title}>{title ?? (en ? 'Ratings & comments' : 'Puanlar ve yorumlar')}</Text>{query.data?.averageRating ? <View style={styles.average}><Ionicons name="star" size={14} color={colors.warning} /><Text style={styles.averageText}>{query.data.averageRating}/10</Text><Text style={styles.averageCount}>({query.data.ratings.length})</Text></View> : null}</View>
     <Text style={styles.label}>{en ? 'Your rating' : 'Puanın'} {rating ? `· ${rating}/10` : ''}</Text>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ratings}>{Array.from({ length: 10 }, (_, index) => index + 1).map((value) => <MotionPressable key={value} accessibilityLabel={`${value} puan ver`} disabled={!canInteract} onPress={() => void submitRating(value)} style={[styles.rating, rating === value && styles.ratingActive]}><Text style={[styles.ratingText, rating === value && styles.ratingTextActive]}>{value}</Text></MotionPressable>)}</ScrollView>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ratings}>{Array.from({ length: 10 }, (_, index) => index + 1).map((value) => <MotionPressable key={value} accessibilityLabel={en ? `Give ${value} stars` : `${value} puan ver`} disabled={!canInteract} onPress={() => void submitRating(value)} style={[styles.rating, rating === value && styles.ratingActive]}><Text style={[styles.ratingText, rating === value && styles.ratingTextActive]}>{value}</Text></MotionPressable>)}</ScrollView>
     {roots.length === 0 ? <Text style={styles.empty}>{en ? 'No comments yet.' : 'Henüz yorum yok.'}</Text> : roots.map((comment) => renderComment(comment))}
-    {!auth.user ? <Locked text={en ? 'Sign in to rate or comment.' : 'Puanlamak veya yorum yapmak için giriş yapmalısın.'} onPress={() => router.push('/auth' as Href)} /> : canReview ? <View style={styles.composerWrap}>
-      {replyTo ? <View style={styles.replying}><Text style={styles.replyingText}>@{replyTo.author} yorumuna yanıt</Text><Pressable onPress={() => setReplyTo(undefined)}><Ionicons name="close" size={17} color={colors.muted} /></Pressable></View> : null}
+    {!auth.user ? <Locked text={en ? 'Sign in to rate or comment.' : 'Puanlamak veya yorum yapmak için giriş yapmalısın.'} loginLabel={en ? 'Sign in' : 'Giriş'} onPress={() => router.push('/auth' as Href)} /> : canReview ? <View style={styles.composerWrap}>
+      {replyTo ? <View style={styles.replying}><Text style={styles.replyingText}>{en ? `Replying to @${replyTo.author}` : `@${replyTo.author} yorumuna yanıt`}</Text><Pressable onPress={() => setReplyTo(undefined)}><Ionicons name="close" size={17} color={colors.muted} /></Pressable></View> : null}
       {pendingImage ? <View style={styles.previewWrap}><Image source={{ uri: pendingImage.uri }} style={styles.preview} /><Pressable style={styles.previewRemove} onPress={() => setPendingImage(undefined)}><Ionicons name="close" size={15} color="#fff" /></Pressable></View> : null}
-      <View style={styles.composer}><MotionPressable accessibilityLabel="Fotoğraf ekle" onPress={() => void chooseImage()} style={styles.photoButton}><Ionicons name="image-outline" size={19} color={colors.text} /></MotionPressable><TextInput value={text} onChangeText={setText} onFocus={scrollToEnd} multiline placeholder={replyTo ? 'Yanıtını yaz…' : 'Spoiler vermeden yorum yaz…'} placeholderTextColor={colors.muted} style={styles.input} /><MotionPressable accessibilityLabel="Yorumu gönder" disabled={isSubmitting} onPress={() => void submit()} style={[styles.send, isSubmitting && styles.disabled]}><Ionicons name="send" size={17} color="#fff" /></MotionPressable></View>
+      <View style={styles.composer}><MotionPressable accessibilityLabel={en ? 'Add photo' : 'Fotoğraf ekle'} onPress={() => void chooseImage()} style={styles.photoButton}><Ionicons name="image-outline" size={19} color={colors.text} /></MotionPressable><TextInput value={text} onChangeText={setText} onFocus={scrollToEnd} multiline placeholder={replyTo ? (en ? 'Write a reply…' : 'Yanıtını yaz…') : (en ? 'Write a spoiler-free review…' : 'Spoiler vermeden yorum yaz…')} placeholderTextColor={colors.muted} style={styles.input} /><MotionPressable accessibilityLabel={en ? 'Send comment' : 'Yorumu gönder'} disabled={isSubmitting} onPress={() => void submit()} style={[styles.send, isSubmitting && styles.disabled]}><Ionicons name="send" size={17} color="#fff" /></MotionPressable></View>
     </View> : <Locked text={en ? 'Watch this title or episode before rating or commenting.' : 'Puanlamak veya yorum yapmak için önce bu yapımı ya da bölümü izlemelisin.'} />}
   </View>;
 }
 
-function Locked({ text, onPress }: { text: string; onPress?: () => void }) { return <View style={styles.locked}><Ionicons name={onPress ? 'person-circle-outline' : 'lock-closed'} size={17} color={colors.warning} /><Text style={styles.lockedText}>{text}</Text>{onPress ? <MotionPressable onPress={onPress} style={styles.login}><Text style={styles.loginText}>Giriş</Text></MotionPressable> : null}</View>; }
+function Locked({ text, loginLabel, onPress }: { text: string; loginLabel?: string; onPress?: () => void }) { return <View style={styles.locked}><Ionicons name={onPress ? 'person-circle-outline' : 'lock-closed'} size={17} color={colors.warning} /><Text style={styles.lockedText}>{text}</Text>{onPress ? <MotionPressable onPress={onPress} style={styles.login}><Text style={styles.loginText}>{loginLabel ?? 'Giriş'}</Text></MotionPressable> : null}</View>; }
 
 const styles = StyleSheet.create({
   root: { marginTop: spacing.xl, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border }, titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.md }, title: { color: colors.text, fontSize: 20, fontWeight: '900', flex: 1 }, average: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(248,193,92,.1)', paddingHorizontal: 10, paddingVertical: 7, borderRadius: radius.pill }, averageText: { color: colors.warning, fontWeight: '900', fontSize: 12 }, averageCount: { color: colors.muted, fontSize: 9 }, label: { color: colors.muted, fontSize: 11, fontWeight: '700', marginTop: spacing.md }, ratings: { gap: 6, paddingVertical: spacing.sm }, rating: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.elevated, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }, ratingActive: { backgroundColor: colors.warning, borderColor: colors.warning }, ratingText: { color: colors.muted, fontSize: 11, fontWeight: '800' }, ratingTextActive: { color: colors.background }, empty: { color: colors.muted, fontSize: 12, marginVertical: spacing.lg },

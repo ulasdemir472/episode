@@ -37,11 +37,11 @@ export function OnboardingTutorial({ onFinish }: { onFinish: () => void }) {
     { icon: 'chatbubble-ellipses-outline', route: { pathname: '/media/[id]', params: { id: String(tutorialMovie.id), data: JSON.stringify(tutorialMovie), tutorialTarget: 'comments' } } as Href, placement: 'middle', title: 'Comments', body: 'After watching, rate and write spoiler-free comments in this area.' },
     { icon: 'people-outline', route: { pathname: '/(tabs)/profile', params: { tutorialTarget: 'friends' } } as Href, placement: 'middle', title: 'Friends', body: 'Set a username, then search friends and send requests here.' },
   ] : [
-    { icon: 'search-outline', route: '/(tabs)/discover' as Href, placement: 'bottom', title: 'Kesfet', body: 'Film ve dizi ara. Detayda sezonlari, bolumleri ve puanlari gor.' },
-    { icon: 'heart-outline', route: '/(tabs)/library' as Href, placement: 'bottom', title: 'Listem', body: 'Izliyorum, izleyecegim, izledim ve biraktim dediklerin burada.' },
-    { icon: 'calendar-outline', route: '/(tabs)/releases' as Href, placement: 'bottom', title: 'Bolumler', body: 'Takip ettigin dizilerin yeni ve yaklasan bolumleri burada.' },
-    { icon: 'chatbubble-ellipses-outline', route: { pathname: '/media/[id]', params: { id: String(tutorialMovie.id), data: JSON.stringify(tutorialMovie), tutorialTarget: 'comments' } } as Href, placement: 'middle', title: 'Yorum ve puan', body: 'Izledikten sonra puan ve spoiler vermeyen yorumu bu alandan ekle.' },
-    { icon: 'people-outline', route: { pathname: '/(tabs)/profile', params: { tutorialTarget: 'friends' } } as Href, placement: 'middle', title: 'Arkadaslar', body: 'Kullanici adi belirle, sonra arkadasini burada ara ve istek gonder.' },
+    { icon: 'search-outline', route: '/(tabs)/discover' as Href, placement: 'bottom', title: 'Keşfet', body: 'Film ve dizi ara. Detayda sezonları, bölümleri ve puanları gör.' },
+    { icon: 'heart-outline', route: '/(tabs)/library' as Href, placement: 'bottom', title: 'Listem', body: 'İzliyorum, izleyeceğim, tamamlandı ve bıraktım dediklerin burada.' },
+    { icon: 'calendar-outline', route: '/(tabs)/releases' as Href, placement: 'bottom', title: 'Bölümler', body: 'Takip ettiğin dizilerin yeni ve yaklaşan bölümleri burada.' },
+    { icon: 'chatbubble-ellipses-outline', route: { pathname: '/media/[id]', params: { id: String(tutorialMovie.id), data: JSON.stringify(tutorialMovie), tutorialTarget: 'comments' } } as Href, placement: 'middle', title: 'Yorum ve puan', body: 'İzledikten sonra puan ve spoiler vermeyen yorumu bu alandan ekle.' },
+    { icon: 'people-outline', route: { pathname: '/(tabs)/profile', params: { tutorialTarget: 'friends' } } as Href, placement: 'middle', title: 'Arkadaşlar', body: 'Kullanıcı adı belirle, sonra arkadaşını burada ara ve istek gönder.' },
   ], [en]);
   const step = steps[index]!;
   const isLast = index === steps.length - 1;
@@ -72,8 +72,8 @@ export function OnboardingTutorial({ onFinish }: { onFinish: () => void }) {
         </View>
         <View style={styles.dots}>{steps.map((_, dotIndex) => <View key={dotIndex} style={[styles.dotItem, dotIndex === index && styles.dotActive]} />)}</View>
         <View style={styles.actions}>
-          <Pressable onPress={onFinish} style={styles.skip}><Text style={styles.skipText}>{en ? 'Skip' : 'Gec'}</Text></Pressable>
-          <Pressable onPress={advance} style={styles.next}><Text style={styles.nextText}>{isLast ? (en ? 'Start' : 'Basla') : (en ? 'Next' : 'Devam')}</Text></Pressable>
+          <Pressable onPress={onFinish} style={styles.skip}><Text style={styles.skipText}>{en ? 'Skip' : 'Geç'}</Text></Pressable>
+          <Pressable onPress={advance} style={styles.next}><Text style={styles.nextText}>{isLast ? (en ? 'Start' : 'Başla') : (en ? 'Next' : 'İlerle')}</Text></Pressable>
         </View>
       </View>
     </View>

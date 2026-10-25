@@ -6,18 +6,25 @@ import { colors, radius, spacing } from '@/theme/tokens';
 import { useCommunityStore } from '@/store/community-store';
 import { MotionPressable } from '@/components/MotionPressable';
 import { useLibraryStore } from '@/store/library-store';
+import { useProfileStore } from '@/store/profile-store';
 
 export function MediaCard({ media, width = 146 }: { media: Media; width?: number }) {
+  const en = useProfileStore((state) => state.language) === 'en';
   const personalRating = useCommunityStore((state) => state.ratings[`media:${media.type}:${media.id}`]);
   const nextEpisode = useLibraryStore((state) => state.items.find((item) => item.media.id === media.id && item.media.type === media.type)?.progress?.nextEpisode);
   return (
-    <MotionPressable accessibilityRole="button" accessibilityLabel={`${media.title} detayını aç${personalRating ? `, puanın ${personalRating}` : ''}`} onPress={() => router.push({ pathname: '/media/[id]', params: { id: String(media.id), data: JSON.stringify(media) } })} style={[styles.root, { width }]}>
+    <MotionPressable
+      accessibilityRole="button"
+      accessibilityLabel={`${media.title} ${en ? 'details' : 'detayını aç'}${personalRating ? `, ${en ? 'your rating' : 'puanın'} ${personalRating}` : ''}`}
+      onPress={() => router.push({ pathname: '/media/[id]', params: { id: String(media.id), data: JSON.stringify(media) } })}
+      style={[styles.root, { width }]}
+    >
       <Image source={{ uri: media.posterUrl }} style={[styles.poster, { width, height: width * 1.48 }]} />
       <View style={styles.rating}><Ionicons name="star" color={colors.warning} size={11} /><Text style={styles.ratingText}>{media.rating}</Text></View>
-      {personalRating && <View style={styles.personalRating}><Ionicons name="person" color="#fff" size={10} /><Text style={styles.personalRatingText}>Sen {personalRating}/10</Text></View>}
+      {personalRating && <View style={styles.personalRating}><Ionicons name="person" color="#fff" size={10} /><Text style={styles.personalRatingText}>{en ? 'You' : 'Sen'} {personalRating}/10</Text></View>}
       <Text style={styles.title} numberOfLines={1}>{media.title}</Text>
-      <Text style={styles.meta}>{media.year} · {media.type === 'tv' ? 'Dizi' : 'Film'}</Text>
-      {nextEpisode ? <Text style={styles.progress}>Kaldığın yer · S{nextEpisode.season} B{nextEpisode.episode}</Text> : null}
+      <Text style={styles.meta}>{media.year} · {media.type === 'tv' ? (en ? 'Show' : 'Dizi') : (en ? 'Movie' : 'Film')}</Text>
+      {nextEpisode ? <Text style={styles.progress}>{en ? 'Continue' : 'Kaldığın yer'} · S{nextEpisode.season} {en ? 'E' : 'B'}{nextEpisode.episode}</Text> : null}
     </MotionPressable>
   );
 }

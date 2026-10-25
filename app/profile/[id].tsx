@@ -12,11 +12,18 @@ import { WatchLevelBadge } from '@/components/WatchLevelBadge';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { fetchAcceptedFriendProfiles, fetchFriendActivity, ProfileActivity } from '@/features/friends/friends-repository';
 import { formatWatchHours, useWatchMinutes } from '@/features/profile/watch-time';
+import { useProfileStore } from '@/store/profile-store';
 import { colors, radius, spacing } from '@/theme/tokens';
 
-const statusText = { watching: 'İzliyor', watchlist: 'Listesinde', completed: 'Tamamladı', dropped: 'Bıraktı' } as const;
+const statusTextMap = {
+  watching: { en: 'Watching', tr: 'İzliyor' },
+  watchlist: { en: 'Watchlist', tr: 'Listesinde' },
+  completed: { en: 'Completed', tr: 'Tamamladı' },
+  dropped: { en: 'Dropped', tr: 'Bıraktı' },
+} as const;
 
 export default function FriendProfileScreen() {
+  const en = useProfileStore((state) => state.language) === 'en';
   const { id } = useLocalSearchParams<{ id: string }>();
   const auth = useAuth();
   const [libraryPage, setLibraryPage] = useState(0);
@@ -30,28 +37,117 @@ export default function FriendProfileScreen() {
   }, [auth.user, id, refetch]));
   const data = query.data;
   const watchTime = useWatchMinutes(data?.library ?? [], data?.episodeRuntimes);
-  if (query.isLoading) return <Screen><Header /><Text style={styles.state}>Profil yükleniyor…</Text></Screen>;
-  if (!data) return <Screen><Header /><View style={styles.stateBox}><Ionicons name="lock-closed-outline" size={28} color={colors.muted} /><Text style={styles.state}>{query.error instanceof Error ? query.error.message : 'Profil açılamadı.'}</Text></View></Screen>;
+  if (query.isLoading) return <Screen><Header /><Text style={styles.state}>{en ? 'Loading profile…' : 'Profil yükleniyor…'}</Text></Screen>;
+  if (!data) return <Screen><Header /><View style={styles.stateBox}><Ionicons name="lock-closed-outline" size={28} color={colors.muted} /><Text style={styles.state}>{query.error instanceof Error ? query.error.message : (en ? 'Could not open profile.' : 'Profil açılamadı.')}</Text></View></Screen>;
   const profile = data.profile;
   const name = `${profile.firstName} ${profile.lastName}`.trim() || (profile.username ? `@${profile.username}` : 'Episode');
   const initials = `${profile.firstName[0] ?? profile.username[0] ?? 'E'}${profile.lastName[0] ?? ''}`.toUpperCase();
   const ratingByTarget = new Map(data.ratings.map((rating) => [rating.targetKey, rating.score]));
-  const alphabeticalLibrary = [...data.library].sort((left, right) => left.media.title.localeCompare(right.media.title, 'tr', { sensitivity: 'base' }));
+  const alphabeticalLibrary = [...data.library].sort((left, right) => left.media.title.localeCompare(right.media.title, en ? 'en' : 'tr', { sensitivity: 'base' }));
   const libraryPages = Array.from({ length: Math.ceil(alphabeticalLibrary.length / 10) }, (_, index) => alphabeticalLibrary.slice(index * 10, index * 10 + 10));
   const currentLibraryPage = Math.min(libraryPage, Math.max(0, libraryPages.length - 1));
   const visibleLibrary = libraryPages[currentLibraryPage] ?? [];
   const visibleActivities = data.activities.slice(0, 3);
-  return <Screen>
-    <View style={styles.hero}><ImageBackground source={profile.coverUrl ? { uri: profile.coverUrl } : undefined} style={StyleSheet.absoluteFill}><LinearGradient colors={['rgba(7,7,10,.12)', colors.background]} style={StyleSheet.absoluteFill} /></ImageBackground><Header /></View>
-    <View style={styles.identity}>{profile.avatarUrl ? <Image source={{ uri: profile.avatarUrl }} style={styles.avatar} /> : <View style={styles.avatarFallback}><Text style={styles.initials}>{initials}</Text></View>}<Text style={styles.name}>{name}</Text>{profile.username ? <Text style={styles.username}>@{profile.username}</Text> : null}</View>
-    <WatchLevelBadge minutes={watchTime.minutes} isLoading={watchTime.isLoading} />
-    <ProfileInsights library={data.library} episodeRuntimes={data.episodeRuntimes} />
-    <View style={styles.stats}><Stat value={data.library.length} label="Yapım" /><Stat value={watchTime.isLoading ? '…' : formatWatchHours(watchTime.minutes)} label="Saat" /><Stat value={data.watchedEpisodeCount} label="Bölüm" /></View>
-    <FriendProfileFriendsPanel profileId={profile.id} profileName={name} />
-    <Section title="Favorileri" count={data.favorites.length}>{data.favorites.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal}>{data.favorites.map((media) => <MediaCard key={`${media.type}-${media.id}`} media={media} width={126} />)}</ScrollView> : <Text style={styles.empty}>Henüz favorisi yok.</Text>}</Section>
-    <Section title="Son hareketler" count={data.activities.length}>{visibleActivities.length ? <View style={styles.activityList}>{visibleActivities.map((activity) => <ProfileActivityRow key={activity.id} activity={activity} />)}{data.activities.length > 3 ? <Pressable onPress={() => router.push({ pathname: '/profile-activities', params: { id: profile.id } } as never)} style={styles.moreButton}><Text style={styles.moreText}>Tüm hareketleri ayrı sayfada gör</Text><Ionicons name="chevron-forward" size={16} color={colors.primary} /></Pressable> : null}</View> : <Text style={styles.empty}>Henüz puan veya yorum hareketi yok.</Text>}</Section>
-    <Section title="İzledikleri" count={data.library.length}>{visibleLibrary.length ? <View style={styles.library}>{visibleLibrary.map((item) => { const score = ratingByTarget.get(`media:${item.media.type}:${item.media.id}`); const next = item.progress?.nextEpisode; return <Pressable key={`${item.media.type}-${item.media.id}`} onPress={() => openMedia(item.media)} style={styles.item}><Image source={{ uri: item.media.posterUrl }} style={styles.poster} /><View style={styles.itemCopy}><Text numberOfLines={1} style={styles.itemTitle}>{item.media.title}</Text><Text style={styles.itemMeta}>{statusText[item.status]}{item.progress ? ` · ${item.progress.watched}/${item.progress.total}` : ''}{next ? ` · Kaldığı yer S${next.season} B${next.episode}` : ''}</Text></View>{score ? <View style={styles.score}><Ionicons name="star" size={12} color={colors.warning} /><Text style={styles.scoreText}>{score}</Text></View> : null}</Pressable>; })}{libraryPages.length > 1 ? <View style={styles.pagination}><Pressable disabled={currentLibraryPage === 0} onPress={() => setLibraryPage(currentLibraryPage - 1)} style={[styles.pageButton, currentLibraryPage === 0 && styles.pageButtonDisabled]}><Ionicons name="chevron-back" size={17} color={currentLibraryPage === 0 ? colors.muted : colors.text} /><Text style={[styles.pageButtonText, currentLibraryPage === 0 && styles.pageButtonTextDisabled]}>Önceki</Text></Pressable><Text style={styles.pageCount}>{currentLibraryPage + 1} / {libraryPages.length}</Text><Pressable disabled={currentLibraryPage === libraryPages.length - 1} onPress={() => setLibraryPage(currentLibraryPage + 1)} style={[styles.pageButton, currentLibraryPage === libraryPages.length - 1 && styles.pageButtonDisabled]}><Text style={[styles.pageButtonText, currentLibraryPage === libraryPages.length - 1 && styles.pageButtonTextDisabled]}>Sonraki</Text><Ionicons name="chevron-forward" size={17} color={currentLibraryPage === libraryPages.length - 1 ? colors.muted : colors.text} /></Pressable></View> : null}</View> : <Text style={styles.empty}>Henüz izleme aktivitesi yok.</Text>}</Section>
-  </Screen>;
+  return (
+    <Screen>
+      <View style={styles.hero}>
+        <ImageBackground source={profile.coverUrl ? { uri: profile.coverUrl } : undefined} style={StyleSheet.absoluteFill}>
+          <LinearGradient colors={['rgba(7,7,10,.12)', colors.background]} style={StyleSheet.absoluteFill} />
+        </ImageBackground>
+        <Header />
+      </View>
+      <View style={styles.identity}>
+        {profile.avatarUrl ? <Image source={{ uri: profile.avatarUrl }} style={styles.avatar} /> : <View style={styles.avatarFallback}><Text style={styles.initials}>{initials}</Text></View>}
+        <Text style={styles.name}>{name}</Text>
+        {profile.username ? <Text style={styles.username}>@{profile.username}</Text> : null}
+      </View>
+      <WatchLevelBadge minutes={watchTime.minutes} isLoading={watchTime.isLoading} />
+      <ProfileInsights library={data.library} episodeRuntimes={data.episodeRuntimes} />
+      <View style={styles.stats}>
+        <Stat value={data.library.length} label={en ? 'Titles' : 'Yapım'} />
+        <Stat value={watchTime.isLoading ? '…' : formatWatchHours(watchTime.minutes)} label={en ? 'Hours' : 'Saat'} />
+        <Stat value={data.watchedEpisodeCount} label={en ? 'Episodes' : 'Bölüm'} />
+      </View>
+      <FriendProfileFriendsPanel profileId={profile.id} profileName={name} />
+      <Section title={en ? 'Favorites' : 'Favorileri'} count={data.favorites.length}>
+        {data.favorites.length ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal}>
+            {data.favorites.map((media) => <MediaCard key={`${media.type}-${media.id}`} media={media} width={126} />)}
+          </ScrollView>
+        ) : (
+          <Text style={styles.empty}>{en ? 'No favorites yet.' : 'Henüz favorisi yok.'}</Text>
+        )}
+      </Section>
+      <Section title={en ? 'Recent activity' : 'Son hareketler'} count={data.activities.length}>
+        {visibleActivities.length ? (
+          <View style={styles.activityList}>
+            {visibleActivities.map((activity) => <ProfileActivityRow key={activity.id} activity={activity} />)}
+            {data.activities.length > 3 ? (
+              <Pressable onPress={() => router.push({ pathname: '/profile-activities', params: { id: profile.id } } as never)} style={styles.moreButton}>
+                <Text style={styles.moreText}>{en ? 'View all activity on separate page' : 'Tüm hareketleri ayrı sayfada gör'}</Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+              </Pressable>
+            ) : null}
+          </View>
+        ) : (
+          <Text style={styles.empty}>{en ? 'No rating or comment activity yet.' : 'Henüz puan veya yorum hareketi yok.'}</Text>
+        )}
+      </Section>
+      <Section title={en ? 'Watched' : 'İzledikleri'} count={data.library.length}>
+        {visibleLibrary.length ? (
+          <View style={styles.library}>
+            {visibleLibrary.map((item) => {
+              const score = ratingByTarget.get(`media:${item.media.type}:${item.media.id}`);
+              const next = item.progress?.nextEpisode;
+              const statusLabel = statusTextMap[item.status][en ? 'en' : 'tr'];
+              return (
+                <Pressable key={`${item.media.type}-${item.media.id}`} onPress={() => openMedia(item.media)} style={styles.item}>
+                  <Image source={{ uri: item.media.posterUrl }} style={styles.poster} />
+                  <View style={styles.itemCopy}>
+                    <Text numberOfLines={1} style={styles.itemTitle}>{item.media.title}</Text>
+                    <Text style={styles.itemMeta}>
+                      {statusLabel}
+                      {item.progress ? ` · ${item.progress.watched}/${item.progress.total}` : ''}
+                      {next ? ` · ${en ? `At S${next.season} E${next.episode}` : `Kaldığı yer S${next.season} B${next.episode}`}` : ''}
+                    </Text>
+                  </View>
+                  {score ? (
+                    <View style={styles.score}>
+                      <Ionicons name="star" size={12} color={colors.warning} />
+                      <Text style={styles.scoreText}>{score}</Text>
+                    </View>
+                  ) : null}
+                </Pressable>
+              );
+            })}
+            {libraryPages.length > 1 ? (
+              <View style={styles.pagination}>
+                <Pressable
+                  disabled={currentLibraryPage === 0}
+                  onPress={() => setLibraryPage(currentLibraryPage - 1)}
+                  style={[styles.pageButton, currentLibraryPage === 0 && styles.pageButtonDisabled]}
+                >
+                  <Ionicons name="chevron-back" size={17} color={currentLibraryPage === 0 ? colors.muted : colors.text} />
+                  <Text style={[styles.pageButtonText, currentLibraryPage === 0 && styles.pageButtonTextDisabled]}>{en ? 'Previous' : 'Önceki'}</Text>
+                </Pressable>
+                <Text style={styles.pageCount}>{currentLibraryPage + 1} / {libraryPages.length}</Text>
+                <Pressable
+                  disabled={currentLibraryPage === libraryPages.length - 1}
+                  onPress={() => setLibraryPage(currentLibraryPage + 1)}
+                  style={[styles.pageButton, currentLibraryPage === libraryPages.length - 1 && styles.pageButtonDisabled]}
+                >
+                  <Text style={[styles.pageButtonText, currentLibraryPage === libraryPages.length - 1 && styles.pageButtonTextDisabled]}>{en ? 'Next' : 'Sonraki'}</Text>
+                  <Ionicons name="chevron-forward" size={17} color={currentLibraryPage === libraryPages.length - 1 ? colors.muted : colors.text} />
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
+        ) : (
+          <Text style={styles.empty}>{en ? 'No watch activity yet.' : 'Henüz izleme aktivitesi yok.'}</Text>
+        )}
+      </Section>
+    </Screen>
+  );
 }
 
 function openMedia(media: NonNullable<ProfileActivity['media']>) { router.push({ pathname: '/media/[id]', params: { id: String(media.id), data: JSON.stringify(media) } }); }
@@ -59,10 +155,26 @@ function openMedia(media: NonNullable<ProfileActivity['media']>) { router.push({
 function Header() { return <Pressable onPress={() => router.back()} style={styles.back}><Ionicons name="chevron-back" size={22} color={colors.text} /></Pressable>; }
 function Stat({ value, label }: { value: number | string; label: string }) { return <View style={styles.stat}><Text style={styles.statValue}>{value}</Text><Text style={styles.statLabel}>{label}</Text></View>; }
 function FriendProfileFriendsPanel({ profileId, profileName }: { profileId: string; profileName: string }) {
+  const en = useProfileStore((state) => state.language) === 'en';
   const friends = useQuery({ queryKey: ['friend-connections', profileId], queryFn: () => fetchAcceptedFriendProfiles(profileId), staleTime: 15_000 });
-  return <Pressable onPress={() => router.push({ pathname: '/friends', params: { profileId, profileName } } as never)} style={styles.friendsPanel}>
-    <View style={styles.friendsShortcut}><View style={styles.friendsTitle}><Ionicons name="people-outline" size={18} color={colors.primary} /><View><Text style={styles.friendsHeading}>Arkadaşlar</Text><Text style={styles.friendsDetail}>{friends.isLoading ? 'Yükleniyor…' : `${friends.data?.length ?? 0} arkadaş · Listeyi gör`}</Text></View></View><Ionicons name="chevron-forward" size={20} color={colors.muted} /></View>
-  </Pressable>;
+  return (
+    <Pressable onPress={() => router.push({ pathname: '/friends', params: { profileId, profileName } } as never)} style={styles.friendsPanel}>
+      <View style={styles.friendsShortcut}>
+        <View style={styles.friendsTitle}>
+          <Ionicons name="people-outline" size={18} color={colors.primary} />
+          <View>
+            <Text style={styles.friendsHeading}>{en ? 'Friends' : 'Arkadaşlar'}</Text>
+            <Text style={styles.friendsDetail}>
+              {friends.isLoading
+                ? (en ? 'Loading…' : 'Yükleniyor…')
+                : (en ? `${friends.data?.length ?? 0} friends · View list` : `${friends.data?.length ?? 0} arkadaş · Listeyi gör`)}
+            </Text>
+          </View>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={colors.muted} />
+      </View>
+    </Pressable>
+  );
 }
 function Section({ title, count, children }: { title: string; count: number; children: React.ReactNode }) { return <View style={styles.section}><View style={styles.sectionHead}><Text style={styles.sectionTitle}>{title}</Text><Text style={styles.count}>{count}</Text></View>{children}</View>; }
 

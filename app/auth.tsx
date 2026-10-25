@@ -5,9 +5,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/components/Screen';
 import { MotionPressable } from '@/components/MotionPressable';
 import { useAuth } from '@/features/auth/AuthProvider';
+import { useProfileStore } from '@/store/profile-store';
 import { colors, radius, spacing } from '@/theme/tokens';
 
 export default function AuthScreen() {
+  const en = useProfileStore((state) => state.language) === 'en';
   const auth = useAuth();
   const [mode, setMode] = useState<'signIn' | 'signUp' | 'forgotPassword'>('signIn');
   const [email, setEmail] = useState('');
@@ -17,69 +19,113 @@ export default function AuthScreen() {
   const submit = async () => {
     if (mode === 'forgotPassword') {
       if (!email.trim() || !email.includes('@')) {
-        Alert.alert('Bilgileri kontrol et', 'Lütfen geçerli bir e-posta adresi gir.');
+        Alert.alert(en ? 'Check details' : 'Bilgileri kontrol et', en ? 'Please enter a valid email address.' : 'Lütfen geçerli bir e-posta adresi gir.');
         return;
       }
       setSubmitting(true);
       const result = await auth.resetPassword(email);
       setSubmitting(false);
       if (result.error) {
-        Alert.alert('İşlem tamamlanamadı', result.error);
+        Alert.alert(en ? 'Action failed' : 'İşlem tamamlanamadı', result.error);
         return;
       }
       Alert.alert(
-        'Sıfırlama bağlantısı gönderildi',
-        'Şifre sıfırlama bağlantısı e-posta adresine iletildi. Lütfen gelen kutunu ve gereksiz (spam) klasörünü kontrol et.'
+        en ? 'Reset link sent' : 'Sıfırlama bağlantısı gönderildi',
+        en ? 'Password reset link has been sent to your email address. Please check your inbox and spam folder.' : 'Şifre sıfırlama bağlantısı e-posta adresine iletildi. Lütfen gelen kutunu ve gereksiz (spam) klasörünü kontrol et.'
       );
       setMode('signIn');
       return;
     }
 
     if (!email.trim() || password.length < 6) {
-      Alert.alert('Bilgileri kontrol et', 'Geçerli bir e-posta ve en az 6 karakterli şifre girmelisin.');
+      Alert.alert(en ? 'Check details' : 'Bilgileri kontrol et', en ? 'Please enter a valid email and a password of at least 6 characters.' : 'Geçerli bir e-posta ve en az 6 karakterli şifre girmelisin.');
       return;
     }
     setSubmitting(true);
     const result = mode === 'signIn' ? await auth.signIn(email, password) : await auth.signUp(email, password);
     setSubmitting(false);
     if (result.error) {
-      Alert.alert('İşlem tamamlanamadı', result.error);
+      Alert.alert(en ? 'Action failed' : 'İşlem tamamlanamadı', result.error);
       return;
     }
     if (result.needsEmailConfirmation) {
-      Alert.alert('E-postanı doğrula', 'Hesabını etkinleştirmek için gönderdiğimiz bağlantıya dokun, ardından giriş yap.');
+      Alert.alert(en ? 'Verify your email' : 'E-postanı doğrula', en ? 'Tap the link we sent to activate your account, then sign in.' : 'Hesabını etkinleştirmek için gönderdiğimiz bağlantıya dokun, ardından giriş yap.');
       setMode('signIn');
       return;
     }
     router.replace('/(tabs)');
   };
 
-  return <Screen keyboardShouldPersistTaps="handled">
-    <View style={styles.header}><Text style={styles.logo}>episode<Text style={styles.dot}>.</Text></Text></View>
-    <View style={styles.body}>
-      <Text style={styles.kicker}>{mode === 'forgotPassword' ? 'ŞİFRE SIFIRLAMA' : 'HESABIN'}</Text>
-      <Text style={styles.title}>{mode === 'signIn' ? 'Tekrar hoş geldin' : mode === 'signUp' ? 'Episode’a katıl' : 'Şifreni sıfırla'}</Text>
-      <Text style={styles.subtitle}>{mode === 'forgotPassword' ? 'Kayıtlı e-posta adresini gir. Sana şifreni yenileyebileceğin bir bağlantı göndereceğiz.' : 'Listeni, izleme geçmişini, puanlarını ve yorumlarını bütün cihazlarında koru.'}</Text>
-      {!auth.configured && <View style={styles.warning}><Ionicons name="warning-outline" size={18} color={colors.warning} /><Text style={styles.warningText}>Supabase environment değişkenleri uygulama config’inde bulunamadı.</Text></View>}
-      <TextInput value={email} onChangeText={setEmail} placeholder="E-posta" placeholderTextColor={colors.muted} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} textContentType="emailAddress" style={styles.input} />
-      {mode !== 'forgotPassword' && (
-        <TextInput value={password} onChangeText={setPassword} placeholder="Şifre" placeholderTextColor={colors.muted} secureTextEntry textContentType={mode === 'signIn' ? 'password' : 'newPassword'} style={styles.input} />
-      )}
-      {mode === 'signIn' && (
-        <MotionPressable onPress={() => setMode('forgotPassword')} style={styles.forgotPassword}>
-          <Text style={styles.forgotPasswordText}>Şifremi unuttum</Text>
+  return (
+    <Screen keyboardShouldPersistTaps="handled">
+      <View style={styles.header}><Text style={styles.logo}>episode<Text style={styles.dot}>.</Text></Text></View>
+      <View style={styles.body}>
+        <Text style={styles.kicker}>{mode === 'forgotPassword' ? (en ? 'PASSWORD RESET' : 'ŞİFRE SIFIRLAMA') : (en ? 'YOUR ACCOUNT' : 'HESABIN')}</Text>
+        <Text style={styles.title}>{mode === 'signIn' ? (en ? 'Welcome back' : 'Tekrar hoş geldin') : mode === 'signUp' ? (en ? 'Join Episode' : 'Episode’a katıl') : (en ? 'Reset password' : 'Şifreni sıfırla')}</Text>
+        <Text style={styles.subtitle}>{mode === 'forgotPassword' ? (en ? 'Enter your registered email address. We will send you a link to reset your password.' : 'Kayıtlı e-posta adresini gir. Sana şifreni yenileyebileceğin bir bağlantı göndereceğiz.') : (en ? 'Keep your library, watch history, ratings, and comments in sync across all devices.' : 'Listeni, izleme geçmişini, puanlarını ve yorumlarını bütün cihazlarında koru.')}</Text>
+        {!auth.configured && (
+          <View style={styles.warning}>
+            <Ionicons name="warning-outline" size={18} color={colors.warning} />
+            <Text style={styles.warningText}>{en ? 'Supabase environment variables not found in app config.' : 'Supabase environment değişkenleri uygulama config’inde bulunamadı.'}</Text>
+          </View>
+        )}
+        <TextInput
+          value={email}
+          onChangeText={setEmail}
+          placeholder={en ? 'Email' : 'E-posta'}
+          placeholderTextColor={colors.muted}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          textContentType="emailAddress"
+          style={styles.input}
+        />
+        {mode !== 'forgotPassword' && (
+          <TextInput
+            value={password}
+            onChangeText={setPassword}
+            placeholder={en ? 'Password' : 'Şifre'}
+            placeholderTextColor={colors.muted}
+            secureTextEntry
+            textContentType={mode === 'signIn' ? 'password' : 'newPassword'}
+            style={styles.input}
+          />
+        )}
+        {mode === 'signIn' && (
+          <MotionPressable onPress={() => setMode('forgotPassword')} style={styles.forgotPassword}>
+            <Text style={styles.forgotPasswordText}>{en ? 'Forgot password?' : 'Şifremi unuttum'}</Text>
+          </MotionPressable>
+        )}
+        <MotionPressable disabled={submitting || !auth.configured} onPress={submit} style={styles.submit}>
+          {submitting ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.submitText}>
+              {mode === 'signIn' ? (en ? 'Sign in' : 'Giriş yap') : mode === 'signUp' ? (en ? 'Create account' : 'Hesap oluştur') : (en ? 'Send reset link' : 'Sıfırlama bağlantısı gönder')}
+            </Text>
+          )}
         </MotionPressable>
-      )}
-      <MotionPressable disabled={submitting || !auth.configured} onPress={submit} style={styles.submit}>{submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>{mode === 'signIn' ? 'Giriş yap' : mode === 'signUp' ? 'Hesap oluştur' : 'Sıfırlama bağlantısı gönder'}</Text>}</MotionPressable>
-      <MotionPressable onPress={() => {
-        if (mode === 'forgotPassword') {
-          setMode('signIn');
-        } else {
-          setMode((current) => current === 'signIn' ? 'signUp' : 'signIn');
-        }
-      }} style={styles.switch}><Text style={styles.switchText}>{mode === 'signIn' ? 'Hesabın yok mu? Kayıt ol' : mode === 'signUp' ? 'Zaten hesabın var mı? Giriş yap' : 'Giriş ekranına geri dön'}</Text></MotionPressable>
-    </View>
-  </Screen>;
+        <MotionPressable
+          onPress={() => {
+            if (mode === 'forgotPassword') {
+              setMode('signIn');
+            } else {
+              setMode((current) => (current === 'signIn' ? 'signUp' : 'signIn'));
+            }
+          }}
+          style={styles.switch}
+        >
+          <Text style={styles.switchText}>
+            {mode === 'signIn'
+              ? (en ? "Don't have an account? Sign up" : 'Hesabın yok mu? Kayıt ol')
+              : mode === 'signUp'
+              ? (en ? 'Already have an account? Sign in' : 'Zaten hesabın var mı? Giriş yap')
+              : (en ? 'Back to sign in' : 'Giriş ekranına geri dön')}
+          </Text>
+        </MotionPressable>
+      </View>
+    </Screen>
+  );
 }
 
 const styles = StyleSheet.create({
