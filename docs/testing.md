@@ -4,6 +4,8 @@ Bu doküman test adlarından çok, her test grubunun hangi kullanıcı davranı�
 
 Fiziksel iPhone'da bu sürümün kabul kontrolleri: [TestFlight kontrol listesi](testflight-checklist.md). Doğru build/kanal seçimi, “İzlendi” rozeti, bildirim teslimi, çevrimdışı işlemler, hesap ayrımı, gizlilik ve ortak liste senaryolarını içerir.
 
+Edge Function kontrolleri `supabase/functions/deno.json` ile çalışır. `nodeModulesDir: none` sayesinde Expo'nun yerel `node_modules` kurulumuna ihtiyaç duymaz; Node tipleri dahil Deno bağımlılıkları kendi önbelleğinden çözülür ve kökteki `deno.lock` ile sabitlenir. CI ve npm komutları `--frozen` kullanır; bağımlılık değişirse kilit dosyası geliştirme sırasında bilinçli güncellenmelidir.
+
 ## Komutlar
 
 Yeni regresyonlar film/dizi kimlik çakışması, çevrimdışı silme ve geri alma, hesaplar arası veri ayrımı, hatalı hesap silmede verilerin korunması, bildirim ekranının Türkçe/İngilizce davranışı ve bölüm bağlantılarını kapsar. `npm run test:edge` gerçek Deno üzerinde bildirim işleyicisi ve hesap silme akışını test eder. `npm run test:database` bütün migration'ları izole PostgreSQL'e uygular; RLS, saat dilimi, tekil bölüm bildirimi, kalıcı push kuyruğu ve ortak listeleri sınar. `npm run validate:all` bu kontrolleri birlikte çalıştırır; Docker gerektirir.

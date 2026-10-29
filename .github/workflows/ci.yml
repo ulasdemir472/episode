@@ -32,8 +32,8 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.9.6
-      - run: deno check supabase/functions/catalog-api/index.ts supabase/functions/notification-worker/index.ts supabase/functions/delete-account/index.ts
-      - run: deno test supabase/functions/_tests
+      - run: deno check --config supabase/functions/deno.json --frozen supabase/functions/catalog-api/index.ts supabase/functions/notification-worker/index.ts supabase/functions/delete-account/index.ts
+      - run: deno test --config supabase/functions/deno.json --frozen supabase/functions/_tests
   database:
     runs-on: ubuntu-latest
     timeout-minutes: 10

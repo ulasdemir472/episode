@@ -27,8 +27,8 @@
     "test:coverage": "jest --coverage --runInBand",
     "test:database": "node scripts/test-database.mjs",
     "test:deployment": "node --test scripts/__tests__/*.test.mjs",
-    "typecheck:edge": "npx --yes deno@2.9.6 check supabase/functions/catalog-api/index.ts supabase/functions/notification-worker/index.ts supabase/functions/delete-account/index.ts",
-    "test:edge": "npx --yes deno@2.9.6 test supabase/functions/_tests",
+    "typecheck:edge": "npx --yes deno@2.9.6 check --config supabase/functions/deno.json --frozen supabase/functions/catalog-api/index.ts supabase/functions/notification-worker/index.ts supabase/functions/delete-account/index.ts",
+    "test:edge": "npx --yes deno@2.9.6 test --config supabase/functions/deno.json --frozen supabase/functions/_tests",
     "validate": "npm run typecheck && npm run lint && npm test && npm run test:deployment",
     "validate:all": "npm run validate && npm run typecheck:edge && npm run test:edge && npm run test:database"
   },
