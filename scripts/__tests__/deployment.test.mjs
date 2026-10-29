@@ -46,7 +46,7 @@ function harness({ response = healthyResponse, pendingPolls = 0, cronCount = 1, 
 }
 
 test('deployment validates all required secret names without printing their values', async () => {
-  for (const name of ['SUPABASE_ACCESS_TOKEN', 'SUPABASE_PROJECT_ID', 'SUPABASE_DB_PASSWORD', 'EXPO_TOKEN']) {
+  for (const name of ['SUPABASE_ACCESS_TOKEN', 'SUPABASE_PROJECT_ID', 'EXPO_TOKEN']) {
     const dependencies = harness();
     await assert.rejects(deploySupabase({ ...environment, [name]: '' }, dependencies), (error) => {
       assert.match(error.message, new RegExp(name));
@@ -54,6 +54,22 @@ test('deployment validates all required secret names without printing their valu
       return true;
     });
     assert.deepEqual(dependencies.events, []);
+  }
+});
+
+test('deployment uses token-based temporary login even when a stale database password is inherited', async () => {
+  for (const password of [undefined, 'stale-password']) {
+    const source = { ...environment, SUPABASE_DB_PASSWORD: password };
+    const dependencies = harness();
+    const commands = [];
+    dependencies.run = (args, cliEnvironment) => {
+      commands.push(args[0]);
+      assert.equal(Object.hasOwn(cliEnvironment, 'SUPABASE_DB_PASSWORD'), false);
+      assert.equal(cliEnvironment.SUPABASE_ACCESS_TOKEN, environment.SUPABASE_ACCESS_TOKEN);
+    };
+    await deploySupabase(source, dependencies);
+    assert.deepEqual(commands, ['link', 'db', 'functions']);
+    assert.equal(source.SUPABASE_DB_PASSWORD, password);
   }
 });
 

@@ -24,14 +24,15 @@ Repository → **Settings → Secrets and variables → Actions → Repository s
 
 | Secret | Değer |
 |---|---|
-| `SUPABASE_ACCESS_TOKEN` | Hedef projeye erişen Supabase kişisel erişim token'ı. `anon` veya `service_role` anahtarı değildir. CLI link, fonksiyon dağıtımı, Edge Function secret okuma/yazma ve Management API veritabanı sorgularına yetkili olmalı. |
+| `SUPABASE_ACCESS_TOKEN` | Hedef projeye erişen Supabase kişisel erişim token'ı. `anon` veya `service_role` anahtarı değildir. CLI link, geçici veritabanı oturumu oluşturma (`database_write`), fonksiyon dağıtımı, Edge Function secret okuma/yazma ve Management API veritabanı sorgularına yetkili olmalı. |
 | `SUPABASE_PROJECT_ID` | Dashboard proje ayarlarındaki 20 karakterlik **project reference**. Tam `https://PROJECT_REF.supabase.co` URL'si de kabul edilir; baştaki/sondaki boşluklar temizlenir. |
-| `SUPABASE_DB_PASSWORD` | Hedef projenin PostgreSQL parolası. |
 | `EXPO_TOKEN` | Mevcut EAS dağıtım token'ı; tanımlıysa tekrar eklenmez. |
 
 `TMDB_ACCESS_TOKEN` ve `OMDB_API_KEY`, Supabase **Edge Functions → Secrets** bölümünde zaten varsa yeniden eklemek gerekmez. GitHub Actions'a aynı adlarla eklenirlerse dağıtım bunları Supabase'e de aktarır. İki yerde de eksik olan bir anahtar varsa migration başlamadan anlaşılır bir hata verir. Expo push erişim token koruması kullanılıyorsa isteğe bağlı `EXPO_ACCESS_TOKEN` da aynı şekilde aktarılır; verilmediğinde sunucudaki mevcut değer korunur. Sunucu anahtarlarını `EXPO_PUBLIC_*` değişkenlerine koymayın.
 
 Secret'lar bir kez tanımlandıktan ve workflow dosyaları `main` dalına gönderildikten sonra sonraki dağıtımlar otomatik olur. Secret eksikse workflow adını hata mesajında gösterir; değerini loglamaz. Supabase CLI sürümü `2.122.0` olarak sabittir.
+
+Kalıcı PostgreSQL parolası bu workflow için gerekli değildir. CLI, erişim token'ıyla kısa ömürlü bir login role oluşturup migration bağlantısını onunla kurar. Önceden eklenen `SUPABASE_DB_PASSWORD` secret'ı kullanılmaz; güncelliğini yitirmiş bir parola bu bağlantıyı etkileyemez. Bu davranış [sabitlenmiş CLI sürümünün bağlantı kodunda](https://github.com/supabase/cli/blob/v2.122.0/apps/cli-go/internal/utils/flags/db_url.go) tanımlıdır.
 
 Eski şema SQL Editor ile elle kurulmuş ve migration geçmişiyle eşleştirilmemişse ilk `db push` durabilir. Böyle bir durumda mevcut şema ve `supabase_migrations.schema_migrations` kayıtları karşılaştırılmalıdır; workflow geçmişi körlemesine “uygulanmış” saymaz, veritabanını sıfırlamaz. Hata düzeltildikten sonra başarısız workflow yeniden çalıştırılabilir; uygulanmış migration'lar tekrar uygulanmaz.
 

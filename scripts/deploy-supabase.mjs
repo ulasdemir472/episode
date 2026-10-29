@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
-const requiredSecrets = ['SUPABASE_ACCESS_TOKEN', 'SUPABASE_PROJECT_ID', 'SUPABASE_DB_PASSWORD', 'EXPO_TOKEN'];
+const requiredSecrets = ['SUPABASE_ACCESS_TOKEN', 'SUPABASE_PROJECT_ID', 'EXPO_TOKEN'];
 const serverSecrets = ['TMDB_ACCESS_TOKEN', 'OMDB_API_KEY', 'EXPO_ACCESS_TOKEN'];
 
 export function projectReference(value) {
@@ -116,15 +116,19 @@ export async function deploySupabase(environment, {
 } = {}) {
   const configuration = checkConfiguration(environment);
   const requestApi = request ?? managementClient(configuration);
+  // CLI 2.122.0 creates a short-lived login role using the access token when no
+  // database password is supplied. Never let an inherited stale password override it.
+  const cliEnvironment = { ...configuration };
+  delete cliEnvironment.SUPABASE_DB_PASSWORD;
   log('Checking server secrets.');
   await synchronizeSecrets(configuration, requestApi);
   log('Linking the Supabase project.');
-  run(['link', '--project-ref', configuration.SUPABASE_PROJECT_ID], configuration);
+  run(['link', '--project-ref', configuration.SUPABASE_PROJECT_ID], cliEnvironment);
   log('Applying pending database migrations.');
   // Never reset the database or repair migration history automatically.
-  run(['db', 'push', '--linked', '--yes'], configuration);
+  run(['db', 'push', '--linked', '--yes'], cliEnvironment);
   log('Deploying Edge Functions with per-function JWT settings.');
-  run(['functions', 'deploy', '--project-ref', configuration.SUPABASE_PROJECT_ID, '--use-api'], configuration);
+  run(['functions', 'deploy', '--project-ref', configuration.SUPABASE_PROJECT_ID, '--use-api'], cliEnvironment);
   log('Configuring and checking the notification worker.');
   await configureAndVerifyWorker(configuration, requestApi, { sleep, now });
   log('Supabase deployment and notification worker check passed.');
