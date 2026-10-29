@@ -66,7 +66,7 @@ export default function AuthScreen() {
         {!auth.configured && (
           <View style={styles.warning}>
             <Ionicons name="warning-outline" size={18} color={colors.warning} />
-            <Text style={styles.warningText}>{en ? 'Supabase environment variables not found in app config.' : 'Supabase environment değişkenleri uygulama config’inde bulunamadı.'}</Text>
+            <Text style={styles.warningText}>{en ? 'Episode cannot connect right now. Please try again later.' : 'Episode şu anda bağlanamıyor. Lütfen daha sonra tekrar dene.'}</Text>
           </View>
         )}
         <TextInput

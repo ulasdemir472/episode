@@ -5,15 +5,23 @@ import { ProfileActivity } from '@/features/friends/friends-repository';
 import { parseReviewTarget } from '@/features/community/target';
 import { colors, spacing } from '@/theme/tokens';
 import { useProfileStore } from '@/store/profile-store';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { catalogService } from '@/services/tmdb';
+import { notificationRoute } from '@/features/notifications/notification-routing';
+import { t } from '@/i18n/strings';
+import type { Href } from 'expo-router';
 
 export function ProfileActivityRow({ activity }: { activity: ProfileActivity }) {
   const en = useProfileStore((state) => state.language) === 'en';
   const target = parseReviewTarget(activity.targetKey);
+  const [revealed, setRevealed] = useState(false);
+  const details = useQuery({ queryKey: ['activity-media', target?.mediaType, target?.mediaId, en], queryFn: () => catalogService.mediaDetails(target!.mediaType, target!.mediaId, en ? 'en' : 'tr'), enabled: Boolean(target && !activity.media), staleTime: 24 * 60 * 60_000 });
   const episode = target?.targetType === 'episode' ? ` · S${target.seasonNumber} ${en ? 'E' : 'B'}${target.episodeNumber}` : '';
-  const targetTitle = `${activity.media?.title ?? (en ? 'A title' : 'Bir yapım')}${episode}`;
+  const targetTitle = `${activity.media?.title ?? details.data?.title ?? (en ? 'A title' : 'Bir yapım')}${episode}`;
   const date = new Date(activity.createdAt).toLocaleDateString(en ? 'en-US' : 'tr-TR', { day: 'numeric', month: 'short', year: 'numeric' });
-  const openMedia = () => activity.media && router.push({ pathname: '/media/[id]', params: { id: String(activity.media.id), data: JSON.stringify(activity.media) } });
-  return <Pressable disabled={!activity.media} onPress={openMedia} style={styles.activity}>
+  const openMedia = () => router.push(notificationRoute({ targetKey: activity.targetKey }) as Href);
+  return <Pressable disabled={!target} onPress={openMedia} style={styles.activity}>
     <View style={[styles.activityIcon, activity.kind === 'rating' ? styles.ratingIcon : styles.commentIcon]}><Ionicons name={activity.kind === 'rating' ? 'star' : 'chatbubble-ellipses'} size={16} color={activity.kind === 'rating' ? colors.warning : colors.secondary} /></View>
     <View style={styles.activityCopy}>
       <Text style={styles.activityAction}>
@@ -31,7 +39,7 @@ export function ProfileActivityRow({ activity }: { activity: ProfileActivity }) 
           )
         )}
       </Text>
-      {activity.comment ? <Text numberOfLines={3} style={styles.activityComment}>“{activity.comment}”</Text> : null}
+      {activity.comment ? activity.spoiler && !revealed ? <Pressable onPress={(event) => { event.stopPropagation(); setRevealed(true); }}><Text style={styles.activityComment}>{t(en ? 'en' : 'tr', 'revealSpoiler')}</Text></Pressable> : <Text numberOfLines={3} style={styles.activityComment}>“{activity.comment}”</Text> : null}
       <Text style={styles.activityDate}>{date}</Text>
     </View>
     {activity.media ? <Ionicons name="chevron-forward" size={16} color={colors.muted} /> : null}

@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Image, ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, ImageBackground, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -8,7 +8,9 @@ import * as Haptics from 'expo-haptics';
 import { useQuery } from '@tanstack/react-query';
 import { Screen } from '@/components/Screen';
 import { CommunityPanel } from '@/components/CommunityPanel';
-import { EpisodeDetails, Media } from '@/domain/media';
+import { EpisodeDetails, LibraryItem, LibraryStatus, sameMedia } from '@/domain/media';
+import { mediaIdentity, parseMediaSnapshot } from '@/features/catalog/media-route';
+import { t } from '@/i18n/strings';
 import { catalogService, translateGenre } from '@/services/tmdb';
 import { useLibraryStore } from '@/store/library-store';
 import { useProfileStore } from '@/store/profile-store';
@@ -17,27 +19,6 @@ import { MotionPressable } from '@/components/MotionPressable';
 import { MediaCard } from '@/components/MediaCard';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { ScrollFocusTarget } from '@/features/onboarding/ScrollFocusTarget';
-
-function parseMedia(data?: string): Media | undefined {
-  if (!data) return undefined;
-  try {
-    const parsed = JSON.parse(data) as Partial<Media>;
-    if (typeof parsed.id !== 'number' || (parsed.type !== 'movie' && parsed.type !== 'tv') || typeof parsed.title !== 'string') return undefined;
-    return {
-      id: parsed.id,
-      type: parsed.type,
-      title: parsed.title,
-      overview: typeof parsed.overview === 'string' ? parsed.overview : '',
-      posterUrl: typeof parsed.posterUrl === 'string' ? parsed.posterUrl : '',
-      backdropUrl: typeof parsed.backdropUrl === 'string' ? parsed.backdropUrl : '',
-      year: typeof parsed.year === 'string' ? parsed.year : '',
-      rating: typeof parsed.rating === 'number' ? parsed.rating : 0,
-      genres: Array.isArray(parsed.genres) ? parsed.genres.filter((genre): genre is string => typeof genre === 'string') : [],
-    };
-  } catch {
-    return undefined;
-  }
-}
 
 const EpisodeRow = memo(function EpisodeRow({ episode, imdb, watched, onToggle, en }: {
   episode: EpisodeDetails;
@@ -68,11 +49,18 @@ const EpisodeRow = memo(function EpisodeRow({ episode, imdb, watched, onToggle, 
 export default function MediaDetailScreen() {
   const en = useProfileStore((state) => state.language) === 'en';
   const language = useProfileStore((state) => state.language);
-  const params = useLocalSearchParams<{ data?: string; tutorialTarget?: string }>();
+  const params = useLocalSearchParams<{ id?: string; type?: string; data?: string; tutorialTarget?: string; season?: string; episode?: string; targetKey?: string }>();
   const auth = useAuth();
-  const media = useMemo(() => parseMedia(params.data), [params.data]);
+  const identity = mediaIdentity(params);
+  const seed = useMemo(() => parseMediaSnapshot(params.data), [params.data]);
+  const mediaQuery = useQuery({ queryKey: ['media-details', identity?.type, identity?.id, language], queryFn: () => catalogService.mediaDetails(identity!.type, identity!.id, language), enabled: Boolean(identity), placeholderData: seed && identity && sameMedia(seed, identity) ? seed : undefined });
+  const media = mediaQuery.data;
+  const [region, setRegion] = useState('TR');
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [removedItem, setRemovedItem] = useState<LibraryItem>();
+  const extras = useQuery({ queryKey: ['title-extras', identity?.type, identity?.id, region, language], queryFn: () => catalogService.titleExtras(media!, region, language), enabled: Boolean(media) });
   const [season, setSeason] = useState<number>();
-  const [socialEpisode, setSocialEpisode] = useState<EpisodeDetails>();
+  const [selectedEpisode, setSocialEpisode] = useState<EpisodeDetails>();
   const items = useLibraryStore((state) => state.items);
   const watchedEpisodes = useLibraryStore((state) => state.watchedEpisodes);
   const upsert = useLibraryStore((state) => state.upsert);
@@ -82,9 +70,9 @@ export default function MediaDetailScreen() {
   const recordEpisodeRuntimes = useLibraryStore((state) => state.recordEpisodeRuntimes);
   const favorites = useProfileStore((state) => state.favorites);
   const toggleFavorite = useProfileStore((state) => state.toggleFavorite);
-  const saved = media ? items.some((item) => item.media.id === media.id) : false;
-  const favorite = media ? favorites.some((item) => item.id === media.id) : false;
-  const currentStatus = media ? items.find((item) => item.media.id === media.id)?.status : undefined;
+  const saved = media ? items.some((item) => sameMedia(item.media, media)) : false;
+  const favorite = media ? favorites.some((item) => sameMedia(item, media)) : false;
+  const currentStatus = media ? items.find((item) => sameMedia(item.media, media))?.status : undefined;
   const hasWatchedEpisode = useMemo(() => media ? Object.keys(watchedEpisodes).some((key) => key.startsWith(`${media.id}:`)) : false, [media, watchedEpisodes]);
 
   const seriesQuery = useQuery({
@@ -92,25 +80,17 @@ export default function MediaDetailScreen() {
     queryFn: () => catalogService.seriesDetails(media!.id, language),
     enabled: media?.type === 'tv',
   });
-  const activeSeason = season ?? seriesQuery.data?.seasons[0]?.number;
+  const activeSeason = season ?? (Number(params.season) || undefined) ?? items.find((item) => media && sameMedia(item.media, media))?.progress?.nextEpisode?.season ?? seriesQuery.data?.seasons[0]?.number;
 
   const episodesQuery = useQuery({
     queryKey: ['episodes', media?.id, activeSeason, language],
     queryFn: () => catalogService.seasonEpisodes(media!.id, activeSeason!, language),
     enabled: media?.type === 'tv' && Boolean(activeSeason),
   });
-  const movieDetailsQuery = useQuery({
-    queryKey: ['movie-details', media?.id, language],
-    queryFn: async () => {
-      if (!media || media.type !== 'movie') return null;
-      const results = await catalogService.search(media.title, language);
-      return results.find((item) => item.id === media.id) ?? null;
-    },
-    enabled: media?.type === 'movie',
-    staleTime: 60 * 60_000,
-  });
+  const socialEpisode = selectedEpisode?.seasonNumber === activeSeason ? selectedEpisode : episodesQuery.data?.find((episode) => episode.number === Number(params.episode) && episode.seasonNumber === Number(params.season));
+  const movieDetailsQuery = mediaQuery;
   const imdbTitleQuery = useQuery({
-    queryKey: ['imdb-title', media?.type, media?.id], queryFn: () => catalogService.imdbTitleRating(media!),
+    queryKey: ['imdb-title', media?.type, media?.id], queryFn: async () => await catalogService.imdbTitleRating(media!) ?? null,
     enabled: Boolean(media), staleTime: 7 * 24 * 60 * 60_000,
   });
   const imdbEpisodesQuery = useQuery({
@@ -127,6 +107,11 @@ export default function MediaDetailScreen() {
   });
   const seasons = useMemo(() => seriesQuery.data?.seasons ?? [], [seriesQuery.data?.seasons]);
   const totalEpisodes = seasons.reduce((sum, item) => sum + item.episodeCount, 0);
+
+  useEffect(() => {
+    if (media?.runtimeMinutes) useLibraryStore.getState().recordTitleRuntime(media, media.runtimeMinutes);
+  }, [media]);
+
 
   useEffect(() => {
     if (!media || media.type !== 'tv') return;
@@ -174,7 +159,7 @@ export default function MediaDetailScreen() {
     );
   }, [auth.user, en, episodesQuery.data, markThrough, media, seasons, seriesQuery.data?.episodeRunTime, toggleEpisode]);
 
-  if (!media) return null;
+  if (!media) return <Screen><Pressable accessibilityLabel={t(language, 'back')} onPress={() => router.back()} style={{ padding: 24 }}><Ionicons name="chevron-back" color={colors.text} size={24} /></Pressable>{mediaQuery.isLoading ? <ActivityIndicator color={colors.primary} /> : <View style={{ padding: 24 }}><Text style={styles.error}>{t(language, identity ? 'detailError' : 'invalidTitle')}</Text>{identity && <Pressable onPress={() => mediaQuery.refetch()}><Text style={styles.rating}>{t(language, 'retry')}</Text></Pressable>}</View>}</Screen>;
   const requireUser = () => {
     if (auth.user) return true;
     router.push('/auth' as Href);
@@ -183,7 +168,7 @@ export default function MediaDetailScreen() {
   const toggleSaved = () => {
     if (!requireUser()) return;
     Haptics.selectionAsync();
-    if (saved) remove(media.id); else upsert(media, 'watchlist');
+    if (saved) setStatusOpen(true); else upsert(media, 'watchlist');
   };
   const markTitleWatched = () => {
     if (!requireUser()) return;
@@ -224,9 +209,25 @@ export default function MediaDetailScreen() {
       </View>
       {localizedGenres.length > 0 && <Text style={styles.genres}>{localizedGenres.join('  ·  ')}</Text>}
       <Text style={styles.overview}>{displayOverview}</Text>
+      {media.runtimeMinutes ? <Text style={styles.genres}>{media.runtimeMinutes} {en ? 'min' : 'dk'}</Text> : null}
+      {removedItem && <View style={styles.undo}><Text style={styles.overview}>{t(language, 'removedFromList')}</Text><Pressable onPress={() => { useLibraryStore.getState().restore(removedItem); setRemovedItem(undefined); }}><Text style={styles.undoText}>{t(language, 'undo')}</Text></Pressable></View>}
       <MotionPressable style={[styles.action, saved && styles.saved]} onPress={toggleSaved}><Ionicons name={saved ? 'checkmark' : 'add'} size={21} color="#fff" /><Text style={styles.actionText}>{saved ? (en ? 'In my list' : 'Listemde') : (en ? 'Add to list' : 'Listeme ekle')}</Text></MotionPressable>
       <MotionPressable disabled={media.type === 'tv' && seasons.length === 0} style={[styles.watchedAction, currentStatus === 'completed' && styles.watchedActive, media.type === 'tv' && seasons.length === 0 && styles.disabled]} onPress={markTitleWatched}><Ionicons name={currentStatus === 'completed' ? 'checkmark-circle' : 'checkmark-circle-outline'} size={21} color={currentStatus === 'completed' ? '#fff' : colors.text} /><Text style={styles.watchedText}>{currentStatus === 'completed' ? (media.type === 'movie' ? (en ? 'Watched · Undo' : 'İzlendi · Geri al') : (en ? 'Watched' : 'İzlendi')) : media.type === 'movie' ? (en ? 'Watched' : 'İzledim') : (en ? 'Watched all' : 'Tümünü izledim')}</Text></MotionPressable>
       {media.type === 'tv' && saved && currentStatus !== 'completed' && <MotionPressable style={styles.dropAction} onPress={() => { if (requireUser()) upsert(media, currentStatus === 'dropped' ? 'watching' : 'dropped'); }}><Ionicons name={currentStatus === 'dropped' ? 'play-outline' : 'stop-circle-outline'} size={18} color={currentStatus === 'dropped' ? colors.success : colors.muted} /><Text style={[styles.dropText, currentStatus === 'dropped' && styles.resumeText]}>{currentStatus === 'dropped' ? (en ? 'Resume watching' : 'İzlemeye devam et') : (en ? 'Dropped' : 'İzlemeyi bıraktım')}</Text></MotionPressable>}
+
+      <View style={styles.extras}>
+        <Text style={styles.section}>{t(language, 'whereToWatch')}</Text>
+        <View style={styles.countryRow}><Text style={styles.genres}>{t(language, 'country')}</Text>{['TR', 'US', 'GB', 'DE'].map((country) => <Pressable accessibilityRole="button" accessibilityState={{ selected: region === country }} key={country} onPress={() => setRegion(country)} style={[styles.country, region === country && styles.seasonActive]}><Text style={styles.rating}>{country}</Text></Pressable>)}</View>
+        {extras.isLoading ? <ActivityIndicator color={colors.primary} /> : extras.isError ? <Pressable onPress={() => extras.refetch()}><Text style={styles.error}>{t(language, 'retry')}</Text></Pressable> : <>
+          {(['flatrate', 'rent', 'buy'] as const).map((kind) => extras.data?.providers?.[kind]?.length ? <View key={kind} style={{ marginTop: spacing.md }}><Text style={styles.rating}>{t(language, kind === 'flatrate' ? 'subscription' : kind)}</Text><Text style={styles.overview}>{extras.data.providers[kind]!.map((provider) => provider.provider_name).join(' · ')}</Text></View> : null)}
+          {!extras.data?.providers && <Text style={styles.overview}>{t(language, 'noProviders')}</Text>}
+          {extras.data?.providers?.link && <Pressable onPress={() => { void Linking.openURL(extras.data!.providers!.link!).catch(() => Alert.alert(t(language, 'error'))); }} style={styles.watchedAction}><Text style={styles.watchedText}>{t(language, 'whereToWatch')} ↗</Text></Pressable>}
+          <Text style={styles.attribution}>{t(language, 'providerAttribution')}</Text>
+          {extras.data?.trailerUrl && <Pressable onPress={() => { void Linking.openURL(extras.data!.trailerUrl!).catch(() => Alert.alert(t(language, 'error'))); }} style={styles.watchedAction}><Ionicons name="play-circle-outline" size={22} color={colors.text} /><Text style={styles.watchedText}>{t(language, 'trailer')}</Text></Pressable>}
+          {extras.data?.director && <Text style={styles.overview}>{t(language, 'director')}: {extras.data.director}</Text>}
+          {!!extras.data?.cast.length && <><Text style={[styles.section, { marginTop: spacing.lg }]}>{t(language, 'cast')}</Text><Text style={styles.overview}>{extras.data.cast.map((person) => person.name).join(' · ')}</Text></>}
+        </>}
+      </View>
 
       {media.type === 'tv' && <>
         <View style={styles.rule} />
@@ -235,7 +236,7 @@ export default function MediaDetailScreen() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.seasons}>
             {seriesQuery.data?.seasons.map((item) => <MotionPressable key={item.id} onPress={() => setSeason(item.number)} style={[styles.season, activeSeason === item.number && styles.seasonActive]}><Text style={[styles.seasonText, activeSeason === item.number && styles.seasonTextActive]}>{item.number}. {en ? 'Season' : 'Sezon'}</Text><Text style={[styles.seasonCount, activeSeason === item.number && styles.seasonTextActive]}>{item.episodeCount} {en ? 'episodes' : 'bölüm'}</Text></MotionPressable>)}
           </ScrollView>}
-        {episodesQuery.isLoading ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : episodesQuery.isError ? <Text style={styles.error}>{en ? 'Could not load episodes. Check your API key and connection.' : 'Bölümler yüklenemedi. API anahtarını ve bağlantını kontrol et.'}</Text> :
+        {episodesQuery.isLoading ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : episodesQuery.isError ? <Pressable onPress={() => episodesQuery.refetch()}><Text style={styles.error}>{t(language, 'detailError')} {t(language, 'retry')}</Text></Pressable> :
           <View style={styles.episodes}>{episodesQuery.data?.map((episode) => {
             const key = `${media.id}:${episode.seasonNumber}:${episode.number}`;
             const watched = Boolean(watchedEpisodes[key]);
@@ -248,9 +249,9 @@ export default function MediaDetailScreen() {
             {episodesQuery.data.map((episode) => <MotionPressable key={`discussion-${episode.id}`} onPress={() => setSocialEpisode(episode)} style={[styles.discussionChip, socialEpisode?.id === episode.id && styles.discussionChipActive]}><Ionicons name="chatbubble-outline" size={13} color={socialEpisode?.id === episode.id ? '#fff' : colors.muted} /><Text style={[styles.discussionChipText, socialEpisode?.id === episode.id && styles.discussionChipTextActive]}>{en ? 'E' : 'B'}{episode.number}</Text></MotionPressable>)}
           </ScrollView>
         </View>}
-        {socialEpisode && <CommunityPanel targetKey={`episode:${media.id}:${socialEpisode.seasonNumber}:${socialEpisode.number}`} title={`S${socialEpisode.seasonNumber} ${en ? 'E' : 'B'}${socialEpisode.number} · ${en ? 'Ratings & reviews' : 'Puanlar ve yorumlar'}`} canReview={Boolean(watchedEpisodes[`${media.id}:${socialEpisode.seasonNumber}:${socialEpisode.number}`])} />}
+        {socialEpisode && <ScrollFocusTarget active={params.targetKey?.startsWith('episode:') === true}><CommunityPanel targetKey={`episode:${media.id}:${socialEpisode.seasonNumber}:${socialEpisode.number}`} title={`S${socialEpisode.seasonNumber} ${en ? 'E' : 'B'}${socialEpisode.number} · ${en ? 'Ratings & reviews' : 'Puanlar ve yorumlar'}`} canReview={Boolean(watchedEpisodes[`${media.id}:${socialEpisode.seasonNumber}:${socialEpisode.number}`])} /></ScrollFocusTarget>}
       </>}
-      <ScrollFocusTarget active={params.tutorialTarget === 'comments'}>
+      <ScrollFocusTarget active={params.tutorialTarget === 'comments' || params.targetKey?.startsWith('media:') === true}>
         <CommunityPanel targetKey={`media:${media.type}:${media.id}`} canReview={media.type === 'movie' ? currentStatus === 'completed' : currentStatus === 'completed' || hasWatchedEpisode} />
       </ScrollFocusTarget>
       {!!recommendationsQuery.data?.length && <View style={styles.similar}>
@@ -262,10 +263,12 @@ export default function MediaDetailScreen() {
         </ScrollView>
       </View>}
     </View>
+    <Modal visible={statusOpen} transparent animationType="slide" onRequestClose={() => setStatusOpen(false)}><Pressable onPress={() => setStatusOpen(false)} style={styles.modalBackdrop}><Pressable onPress={(event) => event.stopPropagation()} style={styles.statusSheet}><Text style={styles.section}>{t(language, 'manageList')}</Text>{(['watchlist', 'watching', 'completed', 'dropped'] as LibraryStatus[]).map((status) => <Pressable key={status} style={styles.statusOption} onPress={() => { setStatusOpen(false); if (status === 'completed' && media.type === 'tv') markTitleWatched(); else upsert(media, status); }}><Text style={styles.watchedText}>{({ watchlist: en ? 'Watchlist' : 'İzleyeceğim', watching: en ? 'Watching' : 'İzliyorum', completed: en ? 'Completed' : 'Tamamlandı', dropped: en ? 'Dropped' : 'Bıraktım' })[status]}</Text>{currentStatus === status && <Ionicons name="checkmark" size={20} color={colors.success} />}</Pressable>)}<Pressable style={styles.statusOption} onPress={() => { setRemovedItem(items.find((item) => sameMedia(item.media, media))); remove(media); setStatusOpen(false); }}><Text style={styles.undoText}>{t(language, 'removeFromList')}</Text></Pressable></Pressable></Pressable></Modal>
   </Screen>;
 }
 
 const styles = StyleSheet.create({
+  extras: { marginTop: spacing.xl, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border }, countryRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: spacing.md }, country: { padding: 12, borderRadius: radius.sm, backgroundColor: colors.elevated }, attribution: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: spacing.md }, undo: { padding: spacing.md, backgroundColor: colors.surface, borderRadius: radius.md, marginTop: spacing.md }, undoText: { color: colors.primary, fontSize: 14, fontWeight: '800', paddingVertical: 8 }, modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,.6)' }, statusSheet: { padding: spacing.lg, paddingBottom: 40, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, backgroundColor: colors.surface }, statusOption: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: colors.border },
   similar: { marginTop: spacing.lg }, similarSubtitle: { color: colors.muted, fontSize: 12, marginTop: 5 }, similarList: { paddingTop: spacing.lg, paddingRight: spacing.sm },
   hero: { height: 330 }, back: { position: 'absolute', top: spacing.md, left: spacing.md, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,.45)', alignItems: 'center', justifyContent: 'center' }, favorite: { position: 'absolute', top: spacing.md, right: spacing.md, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,.45)', alignItems: 'center', justifyContent: 'center' },
   body: { paddingHorizontal: spacing.lg, marginTop: -45 }, type: { color: colors.primary, fontSize: 10, fontWeight: '900', letterSpacing: 1.5 }, title: { color: colors.text, fontSize: 38, lineHeight: 42, fontWeight: '900', letterSpacing: -1.3, marginTop: spacing.sm },

@@ -3,8 +3,11 @@ import { AppState } from 'react-native';
 import { EmailOtpType, Session, User } from '@supabase/supabase-js';
 import * as Linking from 'expo-linking';
 import { router, type Href } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { isSupabaseConfigured, supabase } from '@/infrastructure/supabase/client';
-import { hydrateAndSyncUser, persistCurrentUserState } from '@/features/sync/user-sync-service';
+import { hydrateAndSyncUser, persistCurrentUserState, StaleSyncError } from '@/features/sync/user-sync-service';
+import { deleteUserAccount } from './account-service';
+import { unregisterPushToken } from '@/features/notifications/device-service';
 import { useLibraryStore } from '@/store/library-store';
 import { useProfileStore } from '@/store/profile-store';
 import { useCommunityStore } from '@/store/community-store';
@@ -29,6 +32,7 @@ type AuthContextValue = {
   syncStatus: 'idle' | 'syncing' | 'ready' | 'error';
   syncError?: string;
   retrySync: () => Promise<void>;
+  flushSync: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<AuthResult>;
   signUp: (email: string, password: string) => Promise<AuthResult>;
   resetPassword: (email: string) => Promise<AuthResult>;
@@ -40,6 +44,8 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: PropsWithChildren) {
+  const queryClient = useQueryClient();
+  const activeUserId = useRef<string | undefined>(undefined);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(Boolean(supabase));
   const [syncStatus, setSyncStatus] = useState<AuthContextValue['syncStatus']>('idle');
@@ -57,13 +63,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const lastName = useProfileStore((state) => state.lastName);
   const username = useProfileStore((state) => state.username);
   const language = useProfileStore((state) => state.language);
+  const visibility = useProfileStore((state) => state.visibility);
   const avatarUrl = useProfileStore((state) => state.avatarUrl);
   const coverUrl = useProfileStore((state) => state.coverUrl);
   const favorites = useProfileStore((state) => state.favorites);
+  const communityChanges = useCommunityStore((state) => state.pendingChanges);
+  const deletedCommentIds = useCommunityStore((state) => state.deletedCommentIds);
 
   const retrySync = useCallback(async (operation: SyncOperation = 'hydrate') => {
     const userId = session?.user.id;
-    if (!userId) return;
+    if (!userId || activeUserId.current !== userId) return;
     pendingSyncOperation.current = operation;
     if (syncInFlight.current) {
       syncRerunRequested.current = true;
@@ -76,12 +85,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setSyncError(undefined);
     if (operation === 'hydrate') setSyncStatus('syncing');
     try {
-      if (operation === 'hydrate') await hydrateAndSyncUser(userId);
-      else await persistCurrentUserState(userId);
+      const isCurrent = () => activeUserId.current === userId;
+      if (operation === 'hydrate') await hydrateAndSyncUser(userId, isCurrent);
+      else await persistCurrentUserState(userId, isCurrent);
+      if (!isCurrent()) return;
       syncReady.current = true;
       syncRetryAttempt.current = 0;
       setSyncStatus('ready');
     } catch (error: unknown) {
+      if (error instanceof StaleSyncError || activeUserId.current !== userId) return;
       setSyncError(error instanceof Error ? error.message : 'Senkronizasyon başarısız.');
       setSyncStatus('error');
       const baseDelay = syncRetryDelays[Math.min(syncRetryAttempt.current, syncRetryDelays.length - 1)]!;
@@ -109,16 +121,26 @@ export function AuthProvider({ children }: PropsWithChildren) {
       return;
     }
     let active = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (active) {
-        setSession(data.session);
-        setLoading(false);
+    let generation = 0;
+    const acceptSession = async (nextSession: Session | null) => {
+      const currentGeneration = ++generation;
+      const previousUserId = activeUserId.current;
+      activeUserId.current = nextSession?.user.id;
+      const stores = [useLibraryStore, useProfileStore, useCommunityStore];
+      await Promise.all(stores.map((store) => store.persist.hasHydrated() ? Promise.resolve() : store.persist.rehydrate()));
+      if (!active || generation !== currentGeneration) return;
+      if (nextSession) {
+        for (const store of stores) store.getState().bindUser(nextSession.user.id);
       }
-    }).catch(() => active && setLoading(false));
+      if (previousUserId !== nextSession?.user.id) queryClient.clear();
+      setSession(nextSession);
+      setLoading(false);
+    };
+    supabase.auth.getSession().then(({ data }) => { if (generation === 0) return acceptSession(data.session); }).catch(() => active && setLoading(false));
     const { data: listener } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (active) {
-        setSession(nextSession);
-        setLoading(false);
+        if (event !== 'TOKEN_REFRESHED') void acceptSession(nextSession);
+        else setSession(nextSession);
         if (event === 'PASSWORD_RECOVERY') {
           router.push('/reset-password' as Href);
         }
@@ -126,9 +148,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
     });
     return () => {
       active = false;
+      activeUserId.current = undefined;
       listener.subscription.unsubscribe();
     };
-  }, []);
+  }, [queryClient]);
 
   useEffect(() => {
     const client = supabase;
@@ -197,7 +220,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       void retrySync('persist');
     }, 900);
     return () => clearTimeout(timeout);
-  }, [avatarUrl, coverUrl, favorites, firstName, language, lastName, libraryItems, retrySync, session?.user.id, syncStatus, username, watchedEpisodes]);
+  }, [avatarUrl, communityChanges, coverUrl, deletedCommentIds, favorites, firstName, language, lastName, libraryItems, retrySync, session?.user.id, syncStatus, username, visibility, watchedEpisodes]);
 
   useEffect(() => {
     if (!session?.user.id) return;
@@ -215,6 +238,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     syncStatus,
     syncError,
     retrySync: () => retrySync('hydrate'),
+    flushSync: async () => { const id = session?.user.id; if (!id) throw new StaleSyncError('Session changed'); await persistCurrentUserState(id, () => activeUserId.current === id); },
     signIn: async (email, password) => {
       if (!supabase) return { error: 'Supabase bağlantısı yapılandırılmamış.' };
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
@@ -243,8 +267,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
     },
     signOut: async () => {
       if (!supabase) return {};
+      try { if (session?.user.id) { await persistCurrentUserState(session.user.id, () => activeUserId.current === session.user.id); await unregisterPushToken(session.user.id); } }
+      catch { return { error: language === 'en' ? 'Your changes could not be synced. Please try again before signing out.' : 'Değişikliklerin senkronize edilemedi. Çıkış yapmadan önce tekrar dene.' }; }
       const { error } = await supabase.auth.signOut();
       if (error) return { error: error.message };
+      activeUserId.current = undefined;
+      queryClient.clear();
       useLibraryStore.getState().clearUserData();
       useProfileStore.getState().clearUserData();
       useCommunityStore.getState().clearUserData();
@@ -256,16 +284,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
       if (!supabase) return { error: 'Supabase bağlantısı yapılandırılmamış.' };
       const userId = session?.user.id;
       if (!userId) return { error: 'Oturum açmış kullanıcı bulunamadı.' };
-      try {
-        const { error: rpcError } = await supabase.rpc('delete_user_account');
-        if (rpcError) {
-          await supabase.from('profiles').delete().eq('id', userId);
-          await supabase.from('user_library').delete().eq('user_id', userId);
-        }
-      } catch {
-        // Continue clearing client state even if backend network error occurs
-      }
+      activeUserId.current = undefined;
+      try { await deleteUserAccount(); }
+      catch { activeUserId.current = userId; void retrySync('hydrate'); return { error: language === 'en' ? 'Your account could not be deleted. Check your connection and try again.' : 'Hesabın silinemedi. Bağlantını kontrol edip tekrar dene.' }; }
       await supabase.auth.signOut().catch(() => undefined);
+      queryClient.clear();
       useLibraryStore.getState().clearUserData();
       useProfileStore.getState().clearUserData();
       useCommunityStore.getState().clearUserData();
@@ -274,7 +297,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setSyncError(undefined);
       return {};
     },
-  }), [loading, retrySync, session, syncError, syncStatus]);
+  }), [language, loading, queryClient, retrySync, session, syncError, syncStatus]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

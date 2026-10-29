@@ -1,0 +1,65 @@
+name: Backend deployment
+on:
+  workflow_call:
+    secrets:
+      SUPABASE_ACCESS_TOKEN:
+        required: true
+      SUPABASE_PROJECT_ID:
+        required: true
+      SUPABASE_DB_PASSWORD:
+        required: true
+      EXPO_TOKEN:
+        required: true
+      TMDB_ACCESS_TOKEN:
+        required: false
+      OMDB_API_KEY:
+        required: false
+      EXPO_ACCESS_TOKEN:
+        required: false
+permissions:
+  contents: read
+jobs:
+  configuration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13
+      - name: Check branch and required secrets
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: node scripts/deploy-supabase.mjs --check-config
+  checks:
+    needs: configuration
+    uses: ./.github/workflows/ci.yml
+  deploy:
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.122.0
+      - name: Deploy migrations, functions and notification worker
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          TMDB_ACCESS_TOKEN: ${{ secrets.TMDB_ACCESS_TOKEN }}
+          OMDB_API_KEY: ${{ secrets.OMDB_API_KEY }}
+          EXPO_ACCESS_TOKEN: ${{ secrets.EXPO_ACCESS_TOKEN }}
+        run: node scripts/deploy-supabase.mjs

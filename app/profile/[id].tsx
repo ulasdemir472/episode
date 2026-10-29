@@ -11,6 +11,7 @@ import { Screen } from '@/components/Screen';
 import { WatchLevelBadge } from '@/components/WatchLevelBadge';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { fetchAcceptedFriendProfiles, fetchFriendActivity, ProfileActivity } from '@/features/friends/friends-repository';
+import { sameMedia } from '@/domain/media';
 import { formatWatchHours, useWatchMinutes } from '@/features/profile/watch-time';
 import { useProfileStore } from '@/store/profile-store';
 import { colors, radius, spacing } from '@/theme/tokens';
@@ -26,6 +27,7 @@ export default function FriendProfileScreen() {
   const en = useProfileStore((state) => state.language) === 'en';
   const { id } = useLocalSearchParams<{ id: string }>();
   const auth = useAuth();
+  const ownFavorites = useProfileStore((state) => state.favorites);
   const [libraryPage, setLibraryPage] = useState(0);
   const query = useQuery({ queryKey: ['friend-profile', auth.user?.id, id], queryFn: () => fetchFriendActivity(auth.user!.id, id!), enabled: Boolean(auth.user && id), staleTime: 30_000 });
   const { refetch } = query;
@@ -40,6 +42,7 @@ export default function FriendProfileScreen() {
   if (query.isLoading) return <Screen><Header /><Text style={styles.state}>{en ? 'Loading profile…' : 'Profil yükleniyor…'}</Text></Screen>;
   if (!data) return <Screen><Header /><View style={styles.stateBox}><Ionicons name="lock-closed-outline" size={28} color={colors.muted} /><Text style={styles.state}>{query.error instanceof Error ? query.error.message : (en ? 'Could not open profile.' : 'Profil açılamadı.')}</Text></View></Screen>;
   const profile = data.profile;
+  const mutualFavorites = data.favorites.filter((media) => ownFavorites.some((own) => sameMedia(own, media)));
   const name = `${profile.firstName} ${profile.lastName}`.trim() || (profile.username ? `@${profile.username}` : 'Episode');
   const initials = `${profile.firstName[0] ?? profile.username[0] ?? 'E'}${profile.lastName[0] ?? ''}`.toUpperCase();
   const ratingByTarget = new Map(data.ratings.map((rating) => [rating.targetKey, rating.score]));
@@ -61,15 +64,17 @@ export default function FriendProfileScreen() {
         <Text style={styles.name}>{name}</Text>
         {profile.username ? <Text style={styles.username}>@{profile.username}</Text> : null}
       </View>
-      <WatchLevelBadge minutes={watchTime.minutes} isLoading={watchTime.isLoading} />
-      <ProfileInsights library={data.library} episodeRuntimes={data.episodeRuntimes} />
-      <View style={styles.stats}>
+      {data.historyVisible && <WatchLevelBadge minutes={watchTime.minutes} isLoading={watchTime.isLoading} language={en ? 'en' : 'tr'} />}
+      {data.historyVisible && <ProfileInsights library={data.library} episodeRuntimes={data.episodeRuntimes} language={en ? 'en' : 'tr'} />}
+      {data.historyVisible && <View style={styles.stats}>
         <Stat value={data.library.length} label={en ? 'Titles' : 'Yapım'} />
-        <Stat value={watchTime.isLoading ? '…' : formatWatchHours(watchTime.minutes)} label={en ? 'Hours' : 'Saat'} />
+        <Stat value={watchTime.isLoading ? '…' : formatWatchHours(watchTime.minutes, en ? 'en' : 'tr')} label={en ? 'Hours' : 'Saat'} />
         <Stat value={data.watchedEpisodeCount} label={en ? 'Episodes' : 'Bölüm'} />
-      </View>
+      </View>}
+      {!data.historyVisible && <Text style={styles.empty}>{en ? 'This viewing history is private.' : 'Bu izleme geçmişi gizli.'}</Text>}
+      {!!mutualFavorites.length && <Section title={en ? 'Favorites you share' : 'Ortak favorileriniz'} count={mutualFavorites.length}><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal}>{mutualFavorites.map((media) => <MediaCard key={media.type + ':' + media.id} media={media} width={126} />)}</ScrollView></Section>}
       <FriendProfileFriendsPanel profileId={profile.id} profileName={name} />
-      <Section title={en ? 'Favorites' : 'Favorileri'} count={data.favorites.length}>
+      {data.historyVisible && <Section title={en ? 'Favorites' : 'Favorileri'} count={data.favorites.length}>
         {data.favorites.length ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal}>
             {data.favorites.map((media) => <MediaCard key={`${media.type}-${media.id}`} media={media} width={126} />)}
@@ -77,7 +82,7 @@ export default function FriendProfileScreen() {
         ) : (
           <Text style={styles.empty}>{en ? 'No favorites yet.' : 'Henüz favorisi yok.'}</Text>
         )}
-      </Section>
+      </Section>}
       <Section title={en ? 'Recent activity' : 'Son hareketler'} count={data.activities.length}>
         {visibleActivities.length ? (
           <View style={styles.activityList}>
@@ -93,7 +98,7 @@ export default function FriendProfileScreen() {
           <Text style={styles.empty}>{en ? 'No rating or comment activity yet.' : 'Henüz puan veya yorum hareketi yok.'}</Text>
         )}
       </Section>
-      <Section title={en ? 'Watched' : 'İzledikleri'} count={data.library.length}>
+      {data.historyVisible && <Section title={en ? 'Watched' : 'İzledikleri'} count={data.library.length}>
         {visibleLibrary.length ? (
           <View style={styles.library}>
             {visibleLibrary.map((item) => {
@@ -145,7 +150,7 @@ export default function FriendProfileScreen() {
         ) : (
           <Text style={styles.empty}>{en ? 'No watch activity yet.' : 'Henüz izleme aktivitesi yok.'}</Text>
         )}
-      </Section>
+      </Section>}
     </Screen>
   );
 }

@@ -1,6 +1,6 @@
 import { LibraryItem } from '@/domain/media';
 
-const fallbackRuntime = (item: LibraryItem) => item.media.type === 'tv' ? item.progress?.runtimeMinutes ?? 45 : 110;
+const fallbackRuntime = (item: LibraryItem) => item.media.type === 'tv' ? item.progress?.runtimeMinutes ?? 45 : item.media.runtimeMinutes ?? 110;
 
 function collectRuntimeTotals(episodeRuntimes: Record<string, number>) {
   const runtimeTotals = new Map<number, { count: number; minutes: number }>();
@@ -50,8 +50,10 @@ export function calculateViewingInsights(library: LibraryItem[], episodeRuntimes
   return { favoriteGenre, topTitle: topShow?.media.title, topTitleEpisodes: topShow?.progress?.watched ?? 0, tvMinutes, movieMinutes, dominantType, dominantPercent };
 }
 
-export function useWatchMinutes(library: LibraryItem[], episodeRuntimes: Record<string, number> = {}): { minutes: number; isLoading: boolean } {
-  return { minutes: calculateWatchMinutes(library, episodeRuntimes), isLoading: false };
+export function useWatchMinutes(library: LibraryItem[], episodeRuntimes: Record<string, number> = {}): { minutes: number; isLoading: boolean; estimated: boolean } {
+  const totals = collectRuntimeTotals(episodeRuntimes);
+  const estimated = library.some((item) => item.media.type === 'movie' ? item.status === 'completed' && !item.media.runtimeMinutes : (item.progress?.watched ?? 0) > (totals.get(item.media.id)?.count ?? 0));
+  return { minutes: calculateWatchMinutes(library, episodeRuntimes), isLoading: false, estimated };
 }
 
 export function formatWatchHours(minutes: number, language: 'tr' | 'en' = 'tr'): string {

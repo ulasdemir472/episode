@@ -1,5 +1,11 @@
 # Episode sistem mimarisi
 
+## Kullanıcı verisi ve bildirimler
+
+Liste, profil ve topluluk store'ları kullanıcı kimliğiyle ayrılır. Kalıcı değişiklik günlüğü; ekleme, güncelleme, silme ve bölüm işaretini geri alma niyetlerini sunucu onayına kadar saklar. Başarılı bir yanıt yalnızca gönderilen sürümü onaylar; istek devam ederken yapılan yeni düzenleme silinmez. Okuma ve yazmalar tek sıra üzerinden yürür. Birleştirmede bekleyen yerel niyet korunur, diğer kayıtlar sunucudan alınır. Çakışan çevrimdışı niyetler gönderilme sırasıyla uygulanır; bütün cihazlar arasında saat sırasına göre küresel bir olay günlüğü sağlanmaz. Bölüm ve liste yazıları 500 kayıtla sınırlı gruplara ayrılır; izlenme tarihi metadata yenilemesinde yeniden oluşturulmaz.
+
+Bildirimler kalıcı `notifications` inbox'ına yazılır. `notification-worker`, PostgreSQL Cron tarafından özel Vault sırrıyla çağrılır; takip edilen dizilerin bölüm verisini iki dilde tarar ve kullanıcı/saat dilimi/tercih bazında tekil kayıt üretir. Transactional outbox cihaz teslimlerini saklar; Expo ticket/receipt kontrolü, sınırlı yeniden deneme ve geçersiz token temizliği uygulanır. Hesap değişiminde istemci sorgu cache'i temizlenir ve çıkışta cihaz kaydı kaldırılır. Kurulum ve fiziksel cihaz doğrulaması [bildirim rehberindedir](notification-deployment.md).
+
 ## Bugünkü veri akışı
 
 ```text

@@ -1,5 +1,8 @@
 export type MediaType = 'tv' | 'movie';
 export type LibraryStatus = 'watching' | 'watchlist' | 'completed' | 'dropped';
+export type MediaRef = { id: number; type: MediaType };
+export const mediaKey = (media: MediaRef) => `${media.type}:${media.id}`;
+export const sameMedia = (left: MediaRef, right: MediaRef) => mediaKey(left) === mediaKey(right);
 
 export interface Media {
   id: number;
@@ -11,11 +14,13 @@ export interface Media {
   year: string;
   rating: number;
   genres: string[];
+  runtimeMinutes?: number;
 }
 
 export interface LibraryItem {
   media: Media;
   status: LibraryStatus;
+  updatedAt?: string;
   progress?: { watched: number; total: number; nextEpisode?: { season: number; episode: number }; updatedAt?: string; runtimeMinutes?: number; seasons?: { number: number; episodeCount: number }[] };
 }
 

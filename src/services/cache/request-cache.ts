@@ -37,7 +37,7 @@ export class RequestCache {
 
     if (cached) {
       this.remember(key, cached);
-      if (cached.expiresAt > currentTime) return cached.value;
+      if (cached.expiresAt > currentTime && cached.storedAt + policy.ttlMs > currentTime) return cached.value;
     }
 
     try {

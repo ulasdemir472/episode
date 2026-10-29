@@ -5,15 +5,13 @@ on:
     paths-ignore:
       - 'docs/**'
       - '*.md'
-      - '.github/workflows/release.yml'
-      - '.github/workflows/supabase-migration.yml'
   workflow_dispatch:
     inputs:
       channel:
         type: choice
         description: 'Güncelleme kanalı'
-        options: [production, preview]
-        default: production
+        options: [preview, production]
+        default: preview
       message:
         type: string
         description: 'Güncelleme açıklaması'
@@ -21,18 +19,27 @@ on:
         default: 'OTA güncellemesi'
 permissions:
   contents: read
+concurrency:
+  group: episode-deployment-${{ github.repository }}
+  cancel-in-progress: false
 jobs:
+  backend:
+    uses: ./.github/workflows/supabase-deploy.yml
+    secrets: inherit
   update:
+    needs: backend
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22.13
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
-      - run: pnpm validate
       - uses: expo/expo-github-action@v8
         with:
           eas-version: latest
@@ -40,8 +47,8 @@ jobs:
       - name: EAS Update
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          CHANNEL: ${{ inputs.channel || 'preview' }}
+          RAW_MSG: ${{ inputs.message || github.event.head_commit.message || 'Auto OTA update on commit' }}
         run: |
-          CHANNEL="${{ inputs.channel || 'production' }}"
-          RAW_MSG="${{ inputs.message || github.event.head_commit.message || 'Auto OTA update on commit' }}"
-          SAFE_MSG=$(echo "$RAW_MSG" | head -n 1 | cut -c 1-80)
+          SAFE_MSG=$(printf '%s' "$RAW_MSG" | head -n 1 | cut -c 1-80)
           eas update --channel "$CHANNEL" --environment "$CHANNEL" --message "$SAFE_MSG" --non-interactive

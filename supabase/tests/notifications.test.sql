@@ -1,0 +1,48 @@
+begin;
+insert into auth.users(id, email) values ('00000000-0000-4000-8000-000000000001','tr@example.test'), ('00000000-0000-4000-8000-000000000002','en@example.test'), ('00000000-0000-4000-8000-000000000003','other@example.test');
+update public.profiles set language = 'en' where id = '00000000-0000-4000-8000-000000000002';
+update public.notification_preferences set created_at = '2026-10-28T00:00:00Z';
+update public.notification_preferences set time_zone = 'America/New_York' where user_id = '00000000-0000-4000-8000-000000000002';
+insert into public.library_items(user_id,media_type,media_id,status,media,created_at)
+select id,'tv',12,'watching','{"id":12,"type":"tv","title":"Test Show","genres":[]}'::jsonb,'2026-10-28T00:00:00Z' from auth.users where id in ('00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000002');
+insert into public.devices(user_id,expo_push_token,platform) values ('00000000-0000-4000-8000-000000000001','ExpoPushToken[alice]','ios'),('00000000-0000-4000-8000-000000000002','ExpoPushToken[bob]','android');
+insert into public.episode_release_catalog(media_id,season_number,episode_number,language,show_title,episode_title,air_date)
+select 12,1,episode,language,'Test Show','Episode ' || episode,case when episode = 4 then date '2026-10-30' when episode = 5 then date '2026-10-20' else date '2026-10-29' end from generate_series(1,5) episode cross join (values ('tr'),('en')) langs(language);
+insert into public.episode_progress(user_id,media_id,season_number,episode_number,watched) select user_id,12,1,3,true from public.notification_preferences;
+select public.test_assert(public.enqueue_episode_notifications('2026-10-29T06:30:00Z') = 2,'All released batch episodes are notified in Istanbul after 09:00, excluding watched/future/old episodes');
+select public.test_assert(public.enqueue_episode_notifications('2026-10-29T06:30:00Z') = 0,'Repeated worker runs are idempotent');
+select public.test_assert(public.enqueue_episode_notifications('2026-10-29T13:30:00Z') = 2,'New York follows its own local release day and time');
+select public.test_assert((select count(*) from public.notifications where type = 'new_episode') = 4,'One inbox item per user and episode');
+select public.test_assert((select count(*) from public.notification_deliveries) = 4,'Each eligible device receives one durable delivery');
+select public.test_assert((select bool_and(title like '%New episode%') from public.notifications where user_id = '00000000-0000-4000-8000-000000000002'),'English push titles');
+select public.test_assert((select bool_and(title like '%Yeni bölüm%') from public.notifications where user_id = '00000000-0000-4000-8000-000000000001'),'Turkish push titles');
+select public.test_assert((select bool_and(data->>'mediaType' = 'tv' and data->>'notificationId' = id::text and data->>'targetKey' like 'episode:%') from public.notifications),'Push payload can open a standalone episode route');
+select public.test_assert(not has_function_privilege('authenticated','public.enqueue_episode_notifications(timestamptz)','execute'),'Members cannot invoke administrative notification creation');
+select public.test_assert(not has_function_privilege('anon','public.authorize_episode_worker(text)','execute'),'Public callers cannot inspect worker authentication');
+select public.test_assert(public.authorize_episode_worker(repeat('0',64)) = false,'Wrong worker secret rejected');
+select public.test_assert(public.authorize_episode_worker((select decrypted_secret from vault.decrypted_secrets where name = 'episode_worker_secret')),'Vault worker secret accepted');
+select public.test_assert((select count(*) from public.claim_push_deliveries(100)) = 4,'Worker claims pending deliveries');
+select public.test_assert((select count(*) from public.claim_push_deliveries(100)) = 0,'Concurrent workers cannot reclaim leased deliveries');
+update public.notification_deliveries set status = 'pending', locked_until = null, next_attempt_at = now() - interval '1 second';
+update public.notification_preferences set push_enabled = false where user_id = '00000000-0000-4000-8000-000000000002';
+select public.test_assert((select count(*) from public.claim_push_deliveries(100)) = 2,'Disabled push preferences stop queued deliveries');
+update public.notification_preferences set social = false where user_id = '00000000-0000-4000-8000-000000000002';
+insert into public.notifications(user_id,actor_id,type,title,body) values('00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000001','friend_request','Test','Test');
+select public.test_assert((select count(*) from public.notifications where type = 'friend_request') = 0,'Disabled social preferences suppress social notifications');
+update public.notification_preferences set new_episodes = false;
+insert into public.episode_release_catalog(media_id,season_number,episode_number,language,show_title,episode_title,air_date) values(12,1,6,'tr','Show','Six','2026-10-29'),(12,1,6,'en','Show','Six','2026-10-29');
+select public.test_assert(public.enqueue_episode_notifications('2026-10-29T13:30:00Z') = 0,'Disabled episode preferences suppress new episode notifications');
+update public.notification_deliveries set status = 'processing', attempts = 6, locked_until = now() - interval '1 second';
+select count(*) from public.claim_push_deliveries(100);
+select public.test_assert((select bool_and(status = 'failed') from public.notification_deliveries),'Expired final attempts become visible failures rather than stuck leases');
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000001',true);
+select public.test_assert((select count(*) from public.notifications) = 2,'Inbox RLS isolates accounts');
+update public.notifications set read_at = now() where user_id = '00000000-0000-4000-8000-000000000002';
+update public.notifications set read_at = now() where user_id = auth.uid();
+select public.test_assert((select count(*) from public.notifications where read_at is null) = 0,'Owner can mark inbox read');
+select public.test_assert((select count(*) from public.notification_deliveries) = 0,'Members cannot read push tokens or delivery internals');
+reset role;
+select public.test_assert((select bool_and(read_at is null) from public.notifications where user_id = '00000000-0000-4000-8000-000000000002'),'Another account cannot mark notifications read');
+rollback;

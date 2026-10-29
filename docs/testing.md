@@ -2,7 +2,11 @@
 
 Bu doküman test adlarından çok, her test grubunun hangi kullanıcı davranışını koruduğunu açıklar.
 
+Fiziksel iPhone'da bu sürümün kabul kontrolleri: [TestFlight kontrol listesi](testflight-checklist.md). Doğru build/kanal seçimi, “İzlendi” rozeti, bildirim teslimi, çevrimdışı işlemler, hesap ayrımı, gizlilik ve ortak liste senaryolarını içerir.
+
 ## Komutlar
+
+Yeni regresyonlar film/dizi kimlik çakışması, çevrimdışı silme ve geri alma, hesaplar arası veri ayrımı, hatalı hesap silmede verilerin korunması, bildirim ekranının Türkçe/İngilizce davranışı ve bölüm bağlantılarını kapsar. `npm run test:edge` gerçek Deno üzerinde bildirim işleyicisi ve hesap silme akışını test eder. `npm run test:database` bütün migration'ları izole PostgreSQL'e uygular; RLS, saat dilimi, tekil bölüm bildirimi, kalıcı push kuyruğu ve ortak listeleri sınar. `npm run validate:all` bu kontrolleri birlikte çalıştırır; Docker gerektirir.
 
 | Komut | Ne çalıştırır? | Ne zaman kullanılır? |
 |---|---|---|
@@ -11,6 +15,7 @@ Bu doküman test adlarından çok, her test grubunun hangi kullanıcı davranı�
 | `pnpm test:performance` | Cache ve bölüm ilerleme performans bütçeleri | Veri/cache kodu değiştiğinde |
 | `pnpm test:watch` | Değişen testleri sürekli tekrarlar | Kod yazarken |
 | `pnpm test:coverage` | Test kapsam raporu üretir | Eksik test alanlarını ararken |
+| `pnpm test:deployment` | Otomatik dağıtım sırası, worker kontrolü, secret güvenliği ve workflow bağımlılıkları | CI/CD değiştiğinde |
 | `pnpm validate` | TypeScript + ESLint + tüm testler | Commit ve EAS Update öncesi |
 
 ## Test grupları

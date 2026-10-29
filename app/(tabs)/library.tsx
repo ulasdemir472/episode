@@ -1,54 +1,48 @@
 import { useState } from 'react';
-import { FlatList, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { router, type Href } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/components/Screen';
 import { MediaCard } from '@/components/MediaCard';
-import { LibraryItem, LibraryStatus } from '@/domain/media';
+import { LibraryStatus, MediaType, mediaKey } from '@/domain/media';
+import { filterLibrary, libraryCsv, LibraryFilter, LibrarySort } from '@/features/library/library-tools';
 import { useLibraryStore } from '@/store/library-store';
-import { colors, radius, spacing } from '@/theme/tokens';
 import { useProfileStore } from '@/store/profile-store';
-import { MotionPressable } from '@/components/MotionPressable';
-
-type LibraryFilter = LibraryStatus | 'favorites';
-
-const activityTime = (item: LibraryItem) => item.progress?.updatedAt ? new Date(item.progress.updatedAt).getTime() : 0;
-
-const filters: { tr: string; en: string; value: LibraryFilter }[] = [
-  { tr: 'Favorilerim', en: 'Favorites', value: 'favorites' },
-  { tr: 'İzliyorum', en: 'Watching', value: 'watching' },
-  { tr: 'İzleyeceğim', en: 'Watchlist', value: 'watchlist' },
-  { tr: 'Tamamlandı', en: 'Completed', value: 'completed' },
-  { tr: 'Bıraktım', en: 'Dropped', value: 'dropped' },
-];
-
-function LibraryMediaCard({ item }: { item: LibraryItem }) {
-  const en = useProfileStore((state) => state.language) === 'en';
-  const percent = item.progress?.total ? Math.min(100, item.progress.watched / item.progress.total * 100) : 0;
-  return <View style={styles.card}><MediaCard media={item.media} width={158} />{item.progress && <><View style={styles.progressTrack}><View style={[styles.progress, { width: `${percent}%` }]} /></View><Text style={styles.progressLabel}>{item.progress.watched}/{item.progress.total} {en ? 'episodes watched' : 'bölüm izlendi'}</Text></>}</View>;
-}
+import { colors, radius, spacing } from '@/theme/tokens';
+import { t } from '@/i18n/strings';
 
 export default function LibraryScreen() {
   const [filter, setFilter] = useState<LibraryFilter>('watching');
-  const en = useProfileStore((state) => state.language) === 'en';
+  const [type, setType] = useState<'all' | MediaType>('all');
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<LibrarySort>('recent');
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  const language = useProfileStore((state) => state.language);
+  const en = language === 'en';
   const favorites = useProfileStore((state) => state.favorites);
   const allItems = useLibraryStore((state) => state.items);
-  const items: LibraryItem[] = filter === 'favorites'
-    ? favorites.map((media) => allItems.find((item) => item.media.id === media.id && item.media.type === media.type) ?? { media, status: 'watchlist' })
-    : allItems.filter((item) => item.status === filter).sort((left, right) => activityTime(right) - activityTime(left));
-
-  return <Screen>
-    <View style={styles.header}><Text style={styles.kicker}>{en ? 'PERSONAL ARCHIVE' : 'KİŞİSEL ARŞİV'}</Text><Text style={styles.title}>{en ? 'My library' : 'Listem'}</Text><Text style={styles.summary}>{allItems.length} {en ? 'titles · organized by status' : 'yapım · izleme durumuna göre düzenlendi'}</Text></View>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
-      {filters.map((item) => {
-        const count = item.value === 'favorites' ? favorites.length : allItems.filter((libraryItem) => libraryItem.status === item.value).length;
-        return <MotionPressable key={item.value} style={[styles.filter, filter === item.value && styles.active]} onPress={() => setFilter(item.value)}><Text style={[styles.filterText, filter === item.value && styles.activeText]}>{en ? item.en : item.tr}</Text><View style={[styles.count, filter === item.value && styles.activeCount]}><Text style={[styles.countText, filter === item.value && styles.activeCountText]}>{count}</Text></View></MotionPressable>;
-      })}
-    </ScrollView>
-    <FlatList scrollEnabled={false} data={items} keyExtractor={(item) => `${item.status}-${item.media.id}`} numColumns={2} columnWrapperStyle={styles.row} contentContainerStyle={styles.grid} renderItem={({ item }) => <LibraryMediaCard item={item} />} ListEmptyComponent={<View style={styles.emptyBox}><Text style={styles.emptyTitle}>{en ? 'Nothing here yet' : 'Burada henüz bir şey yok'}</Text><Text style={styles.empty}>{en ? 'When you mark an episode as watched, it will automatically move to your "Watching" list.' : 'Bir dizinin bölümünü işaretlediğinde otomatik olarak “İzliyorum” listesine taşınır.'}</Text></View>} />
-  </Screen>;
+  const { width } = useWindowDimensions();
+  const columns = Math.min(4, Math.max(2, Math.floor((width - 48) / 158)));
+  const cardWidth = (width - 48 - (columns - 1) * 12) / columns;
+  const items = filterLibrary(allItems, favorites, { status: filter, type, query, sort, language });
+  const filters: { value: LibraryFilter; label: string }[] = [
+    { value: 'all', label: t(language, 'allTitles') }, { value: 'favorites', label: en ? 'Favorites' : 'Favorilerim' },
+    { value: 'watching', label: en ? 'Watching' : 'İzliyorum' }, { value: 'watchlist', label: en ? 'Watchlist' : 'İzleyeceğim' },
+    { value: 'completed', label: en ? 'Completed' : 'Tamamlandı' }, { value: 'dropped', label: en ? 'Dropped' : 'Bıraktım' },
+  ];
+  const bulk = (status: LibraryStatus) => { for (const item of allItems.filter((entry) => selected.includes(mediaKey(entry.media)))) useLibraryStore.getState().upsert(item.media, status); setSelected([]); setSelecting(false); };
+  const header = <>
+    <View style={styles.header}><Text style={styles.kicker}>{en ? 'PERSONAL ARCHIVE' : 'KİŞİSEL ARŞİV'}</Text><Text style={styles.title}>{en ? 'My library' : 'Listem'}</Text><Text style={styles.summary}>{allItems.length} {en ? 'titles' : 'yapım'}</Text>
+      <View style={styles.search}><Ionicons name="search" size={20} color={colors.muted} /><TextInput accessibilityLabel={t(language, 'librarySearch')} value={query} onChangeText={setQuery} placeholder={t(language, 'librarySearch')} placeholderTextColor={colors.muted} style={styles.input} /></View>
+      <View style={styles.actions}><Pressable onPress={() => { setSelecting(!selecting); setSelected([]); }} style={styles.action}><Text style={styles.actionText}>{selecting ? t(language, 'cancel') : (en ? 'Select titles' : 'Yapım seç')}</Text></Pressable><Pressable onPress={() => { void Share.share({ title: t(language, 'exportTitle'), message: libraryCsv(allItems) }); }} style={styles.action}><Text style={styles.actionText}>{t(language, 'exportLibrary')}</Text></Pressable></View>
+      <Pressable onPress={() => router.push('/shared-lists' as Href)} style={styles.shared}><Ionicons name="people-outline" size={19} color={colors.primary} /><Text style={styles.actionText}>{en ? 'Shared watchlists' : 'Ortak izleme listeleri'}</Text><Ionicons name="chevron-forward" size={17} color={colors.muted} /></Pressable>
+    </View>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>{filters.map((item) => <Pressable key={item.value} accessibilityRole="tab" accessibilityState={{ selected: filter === item.value }} onPress={() => setFilter(item.value)} style={[styles.filter, filter === item.value && styles.active]}><Text style={[styles.filterText, filter === item.value && styles.activeText]}>{item.label}</Text></Pressable>)}</ScrollView>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>{(['all', 'movie', 'tv'] as const).map((value) => <Pressable key={value} onPress={() => setType(value)} style={[styles.filter, type === value && styles.active]}><Text style={[styles.filterText, type === value && styles.activeText]}>{value === 'all' ? t(language, 'all') : value === 'movie' ? (en ? 'Movies' : 'Filmler') : (en ? 'Shows' : 'Diziler')}</Text></Pressable>)}</ScrollView>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>{(['recent', 'title', 'rating', 'year'] as const).map((value) => <Pressable key={value} onPress={() => setSort(value)} style={[styles.filter, sort === value && styles.active]}><Text style={[styles.filterText, sort === value && styles.activeText]}>{t(language, ({ recent: 'recentlyUpdated', title: 'alphabetical', rating: 'ratingSort', year: 'yearSort' } as const)[value])}</Text></Pressable>)}</ScrollView>
+    {selecting && <View style={styles.bulk}><Text style={styles.summary}>{selected.length} {en ? 'selected' : 'seçildi'}</Text><View style={styles.actions}>{(['watchlist', 'watching', 'dropped'] as const).map((status) => <Pressable key={status} disabled={!selected.length} onPress={() => bulk(status)} style={styles.action}><Text style={styles.actionText}>{filters.find((item) => item.value === status)!.label}</Text></Pressable>)}</View></View>}
+  </>;
+  return <Screen scroll={false}><FlatList keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" key={columns} numColumns={columns} data={items} keyExtractor={(item) => mediaKey(item.media)} ListHeaderComponent={header} contentContainerStyle={styles.list} columnWrapperStyle={styles.row} renderItem={({ item }) => <View style={{ width: cardWidth, marginBottom: spacing.lg }}>{selecting && <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: selected.includes(mediaKey(item.media)) }} accessibilityLabel={item.media.title} onPress={() => { const key = mediaKey(item.media); setSelected((current) => current.includes(key) ? current.filter((value) => value !== key) : [...current, key]); }} style={styles.select}><Ionicons name={selected.includes(mediaKey(item.media)) ? 'checkbox' : 'square-outline'} size={28} color={colors.primary} /></Pressable>}<MediaCard media={item.media} width={cardWidth} inGrid />{item.progress && <><View style={styles.progressTrack}><View style={[styles.progress, { width: String(Math.min(100, item.progress.watched / Math.max(1, item.progress.total) * 100)) + '%' as `${number}%` }]} /></View><Text style={styles.summary}>{item.progress.watched}/{item.progress.total} {en ? 'episodes watched' : 'bölüm izlendi'}</Text></>}</View>} ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyTitle}>{query || allItems.length ? t(language, 'noLibraryResults') : (en ? 'Your library starts here' : 'Listen burada başlıyor')}</Text><Pressable onPress={() => router.push('/discover' as Href)} style={styles.action}><Text style={styles.actionText}>{t(language, 'findTitle')}</Text></Pressable></View>} /></Screen>;
 }
-
-const styles = StyleSheet.create({
-  header: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg }, kicker: { color: colors.primary, fontSize: 10, letterSpacing: 1.7, fontWeight: '800' }, title: { color: colors.text, fontSize: 36, fontWeight: '900', letterSpacing: -1.2, marginTop: 4 }, summary: { color: colors.muted, fontSize: 12, marginTop: 6 },
-  filters: { paddingHorizontal: spacing.lg, paddingVertical: spacing.lg, gap: spacing.sm }, filter: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, active: { backgroundColor: colors.text, borderColor: colors.text }, filterText: { color: colors.muted, fontSize: 12, fontWeight: '700' }, activeText: { color: colors.background }, count: { minWidth: 20, height: 20, borderRadius: 10, backgroundColor: colors.elevated, alignItems: 'center', justifyContent: 'center' }, activeCount: { backgroundColor: colors.primary }, countText: { color: colors.muted, fontSize: 10, fontWeight: '800' }, activeCountText: { color: '#fff' },
-  grid: { paddingHorizontal: spacing.lg }, row: { justifyContent: 'space-between', marginBottom: spacing.lg }, card: { width: 158 }, progressTrack: { width: 158, height: 4, backgroundColor: colors.elevated, marginTop: 8, borderRadius: 2, overflow: 'hidden' }, progress: { height: 4, backgroundColor: colors.primary }, progressLabel: { color: colors.muted, fontSize: 9, marginTop: 5 }, emptyBox: { marginTop: 70, paddingHorizontal: spacing.xl, alignItems: 'center' }, emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '800' }, empty: { color: colors.muted, textAlign: 'center', lineHeight: 20, marginTop: spacing.sm },
-});
+const styles = StyleSheet.create({ header: { padding: spacing.lg }, kicker: { color: colors.primary, fontSize: 12, fontWeight: '800', letterSpacing: 1 }, title: { color: colors.text, fontSize: 36, fontWeight: '900', marginTop: 4 }, summary: { color: colors.muted, fontSize: 12, marginTop: 6 }, search: { marginTop: spacing.lg, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: spacing.md, backgroundColor: colors.surface }, input: { flex: 1, minHeight: 50, color: colors.text, fontSize: 15 }, actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: spacing.sm }, action: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, borderRadius: radius.sm, backgroundColor: colors.elevated }, actionText: { color: colors.text, fontSize: 13, fontWeight: '700' }, shared: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: spacing.md }, filters: { gap: 8, paddingHorizontal: spacing.lg, paddingBottom: spacing.md }, filter: { paddingHorizontal: 14, paddingVertical: 12, borderRadius: radius.pill, backgroundColor: colors.surface }, active: { backgroundColor: colors.text }, filterText: { color: colors.muted, fontWeight: '700', fontSize: 12 }, activeText: { color: colors.background }, row: { paddingHorizontal: spacing.lg, justifyContent: 'space-between' }, list: { paddingBottom: 120 }, progressTrack: { marginTop: 8, height: 4, borderRadius: 2, backgroundColor: colors.elevated, overflow: 'hidden' }, progress: { height: 4, backgroundColor: colors.primary }, empty: { padding: spacing.xl, alignItems: 'center', gap: spacing.md }, emptyTitle: { color: colors.text, fontSize: 17, textAlign: 'center' }, bulk: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md }, select: { minHeight: 44, justifyContent: 'center', alignItems: 'flex-end' } });

@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import type { Href } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { MotionPressable } from '@/components/MotionPressable';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { fetchAcceptedFriendProfiles, fetchFriendships, Friendship, PublicProfile, removeFriendship, respondFriendRequest, searchProfiles, sendFriendRequest } from '@/features/friends/friends-repository';
@@ -20,10 +21,11 @@ export default function FriendsScreen() {
   const viewedProfileId = typeof params.profileId === 'string' ? params.profileId : undefined;
   const viewingOtherProfile = Boolean(viewedProfileId && viewedProfileId !== userId);
   const [search, setSearch] = useState('');
+  const debounced = useDebouncedValue(search.trim(), 450);
   const queryClient = useQueryClient();
   const friendships = useQuery({ queryKey: ['friends', userId], queryFn: () => fetchFriendships(userId!), enabled: Boolean(userId && !viewingOtherProfile), staleTime: 10_000 });
   const publicFriends = useQuery({ queryKey: ['friend-connections', viewedProfileId], queryFn: () => fetchAcceptedFriendProfiles(viewedProfileId!), enabled: Boolean(userId && viewingOtherProfile), staleTime: 15_000 });
-  const found = useQuery({ queryKey: ['profile-search', userId, search], queryFn: () => searchProfiles(search, userId!), enabled: Boolean(userId && !viewingOtherProfile && search.trim().length >= 2), staleTime: 5_000 });
+  const found = useQuery({ queryKey: ['profile-search', userId, debounced], queryFn: () => searchProfiles(debounced, userId!), enabled: Boolean(userId && !viewingOtherProfile && debounced.length >= 2), staleTime: 5_000 });
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['friends', userId] });
   const send = useMutation({
     mutationFn: (target: string) => sendFriendRequest(userId!, target),
@@ -83,6 +85,7 @@ export default function FriendsScreen() {
   return (
     <View style={styles.root}>
       <Header />
+      <Pressable onPress={() => router.push('/friends-activity' as Href)} style={{ paddingHorizontal: 24, paddingVertical: 14, flexDirection: 'row', gap: 9 }}><Ionicons name="sparkles-outline" size={20} color={colors.primary} /><Text style={{ color: colors.text, fontSize: 15, fontWeight: '700' }}>{en ? 'Friends are watching' : 'Arkadaşların ne izliyor?'}</Text></Pressable>
       <View style={styles.searchWrap}>
         <Ionicons name="search" size={18} color={colors.muted} />
         <TextInput

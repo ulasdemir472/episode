@@ -19,6 +19,9 @@ describe('watch time calculation', () => {
   it('formats the calculated minutes as hours', () => {
     expect(formatWatchHours(90, 'en')).toBe('1.5');
   });
+  it('uses the actual movie runtime when it is available', () => {
+    expect(calculateWatchMinutes([{ media: { ...movie, runtimeMinutes: 169 }, status: 'completed' }])).toBe(169);
+  });
 
   it('derives favorite genre, top show and viewing balance', () => {
     const library: LibraryItem[] = [

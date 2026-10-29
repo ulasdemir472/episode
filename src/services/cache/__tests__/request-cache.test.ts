@@ -54,4 +54,11 @@ describe('RequestCache', () => {
 
     await expect(cache.getOrLoad('resilient', policy, async () => { throw new Error('offline'); })).resolves.toBe('cached');
   });
+  it('honors a shorter calendar TTL even if title details populated the same key', async () => {
+    let now = 1000;
+    const cache = new RequestCache(new MemoryCacheStore(), () => now);
+    await cache.getOrLoad('show', { ttlMs: 24 * 60 * 60_000, staleIfErrorMs: 0 }, async () => 'old');
+    now += 3 * 60 * 60_000;
+    await expect(cache.getOrLoad('show', { ttlMs: 2 * 60 * 60_000, staleIfErrorMs: 0 }, async () => 'new')).resolves.toBe('new');
+  });
 });

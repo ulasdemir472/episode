@@ -127,6 +127,7 @@ export async function removeFriendship(friendshipId: string): Promise<void> {
 }
 
 export type FriendActivity = {
+  historyVisible: boolean;
   profile: PublicProfile;
   library: LibraryItem[];
   favorites: Media[];
@@ -143,6 +144,7 @@ export type ProfileActivity = {
   media?: Media;
   score?: number;
   comment?: string;
+  spoiler?: boolean;
   createdAt: string;
 };
 
@@ -171,15 +173,16 @@ function isMedia(value: unknown): value is Media {
 
 export async function fetchFriendActivity(_currentUserId: string, friendId: string): Promise<FriendActivity> {
   const client = requireSupabase();
-  const [profileResult, libraryResult, favoritesResult, ratingsResult, commentsResult, progressResult] = await Promise.all([
+  const [profileResult, libraryResult, favoritesResult, ratingsResult, commentsResult, progressResult, visibilityResult] = await Promise.all([
     client.from('profiles').select('id,username,first_name,last_name,avatar_url,cover_url').eq('id', friendId).single(),
     client.from('library_items').select('media,status,progress').eq('user_id', friendId).order('updated_at', { ascending: false }).limit(1000),
     client.from('favorites').select('media').eq('user_id', friendId).limit(50),
     client.from('ratings').select('target_key,score,updated_at').eq('user_id', friendId).order('updated_at', { ascending: false }).limit(500),
-    client.from('comments').select('id,target_key,body,created_at').eq('user_id', friendId).is('deleted_at', null).eq('moderation_status', 'visible').order('created_at', { ascending: false }).limit(500),
+    client.from('comments').select('id,target_key,body,created_at,spoiler').eq('user_id', friendId).is('deleted_at', null).eq('moderation_status', 'visible').order('created_at', { ascending: false }).limit(500),
     fetchAllProfileProgress(friendId),
+    client.rpc('can_view_profile_data', { owner_id: friendId }),
   ]);
-  const error = profileResult.error ?? libraryResult.error ?? favoritesResult.error ?? ratingsResult.error ?? commentsResult.error;
+  const error = profileResult.error ?? libraryResult.error ?? favoritesResult.error ?? ratingsResult.error ?? commentsResult.error ?? visibilityResult.error;
   if (error) throw error;
   if (!profileResult.data) throw new Error('Profil bulunamadı.');
   const watchedByMedia = new Map<number, number>();
@@ -200,9 +203,10 @@ export async function fetchFriendActivity(_currentUserId: string, friendId: stri
   };
   const activities: ProfileActivity[] = [
     ...ratings.map((rating): ProfileActivity => ({ id: `rating:${rating.targetKey}`, kind: 'rating', targetKey: rating.targetKey, media: mediaForTarget(rating.targetKey), score: rating.score, createdAt: rating.updatedAt })),
-    ...(commentsResult.data ?? []).map((comment): ProfileActivity => ({ id: `comment:${comment.id}`, kind: 'comment', targetKey: comment.target_key, media: mediaForTarget(comment.target_key), comment: comment.body, createdAt: comment.created_at })),
+    ...(commentsResult.data ?? []).map((comment): ProfileActivity => ({ id: `comment:${comment.id}`, kind: 'comment', targetKey: comment.target_key, media: mediaForTarget(comment.target_key), comment: comment.body, spoiler: comment.spoiler, createdAt: comment.created_at })),
   ].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   return {
+    historyVisible: visibilityResult.data === true,
     profile: toPublicProfile(profileResult.data),
     library,
     favorites,
@@ -211,4 +215,18 @@ export async function fetchFriendActivity(_currentUserId: string, friendId: stri
     watchedEpisodeCount: progressResult.length,
     episodeRuntimes: Object.fromEntries(progressResult.flatMap((row) => row.runtime_minutes ? [[`${row.media_id}:${row.season_number}:${row.episode_number}`, row.runtime_minutes]] : [])),
   };
+}
+
+export async function fetchFriendsFeed(userId: string): Promise<{ profile: PublicProfile; activity: ProfileActivity }[]> {
+  const friends = await fetchAcceptedFriendProfiles(userId);
+  const client = requireSupabase();
+  const ids = friends.map((friend) => friend.id);
+  if (!ids.length) return [];
+  const [ratings, comments] = await Promise.all([
+    client.from('ratings').select('id,user_id,target_key,score,updated_at').in('user_id', ids).order('updated_at', { ascending: false }).limit(50),
+    client.from('comments').select('id,user_id,target_key,body,created_at,spoiler').in('user_id', ids).is('deleted_at', null).eq('moderation_status', 'visible').order('created_at', { ascending: false }).limit(50),
+  ]);
+  if (ratings.error || comments.error) throw ratings.error ?? comments.error;
+  const profiles = new Map(friends.map((profile) => [profile.id, profile]));
+  return [...(ratings.data ?? []).map((rating) => ({ profile: profiles.get(rating.user_id)!, activity: { id: `rating:${rating.id}`, kind: 'rating' as const, targetKey: rating.target_key, score: rating.score, createdAt: rating.updated_at } })), ...(comments.data ?? []).map((comment) => ({ profile: profiles.get(comment.user_id)!, activity: { id: `comment:${comment.id}`, kind: 'comment' as const, targetKey: comment.target_key, comment: comment.body, spoiler: comment.spoiler, createdAt: comment.created_at } }))].filter((item) => item.profile).sort((a, b) => b.activity.createdAt.localeCompare(a.activity.createdAt)).slice(0, 50);
 }

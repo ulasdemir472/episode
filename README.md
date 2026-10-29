@@ -1,5 +1,7 @@
 # Episode
 
+GitHub Actions testleri, Supabase migration/fonksiyon dağıtımını ve bildirim worker kontrolünü mobil güncellemeden önce otomatik çalıştırır. Bir defalık secret ayarları: [bildirim ve dağıtım rehberi](docs/notification-deployment.md).
+
 Film ve dizileri keşfetmek, izleme listelerini yönetmek ve yeni bölümleri takip etmek için iOS ve Android hedefli cross-platform React Native uygulaması.
 
 ## Neler hazır?
@@ -30,11 +32,7 @@ Terminalde çıkan QR kodu Expo Go ile okut. Android emülatör için `pnpm andr
 
 1. [TMDB](https://www.themoviedb.org/) hesabı aç ve e-postanı doğrula.
 2. `Settings → API → Request an API Key → Developer` yolunu izleyip uygulama formunu doldur.
-3. API sayfasındaki uzun **API Read Access Token** değerini Supabase Edge Function secret'ı olarak ekle. OMDb anahtarını da aynı komutta tanımla:
-
-```bash
-npx supabase secrets set TMDB_ACCESS_TOKEN=eyJ... OMDB_API_KEY=anahtarin --project-ref PROJECT_REF
-```
+3. API sayfasındaki uzun **API Read Access Token** değerini GitHub Actions'a `TMDB_ACCESS_TOKEN`, OMDb anahtarını `OMDB_API_KEY` secret'ı olarak ekle. Workflow bunları Supabase Edge Functions'a aktarır. Supabase'de zaten tanımlılarsa tekrar eklemek gerekmez.
 
 IMDb'nin herkese açık resmi bir API'si yoktur; puanlar [OMDb API](https://www.omdbapi.com/apikey.aspx) üzerinden gelir. Bu anahtarları `.env` veya EAS environment içine `EXPO_PUBLIC_*` adıyla koyma; mobil paketten okunabilirler.
 
@@ -48,42 +46,26 @@ EXPO_PUBLIC_SUPABASE_URL=https://project-ref.supabase.co
 EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=publishable_key
 ```
 
-3. Dashboard'da `SQL Editor -> New query` ac, `supabase/migrations/202607110001_initial_schema.sql` dosyasini calistir. Bu tablo, RLS policy, yorum/puan kisiti ve realtime ayarlarini kurar.
+3. [Dağıtım rehberindeki](docs/notification-deployment.md) GitHub Actions secret'larını tanımla. `main` push'larında tüm bekleyen migration'lar otomatik uygulanır; SQL Editor'de dosyaları tek tek çalıştırma.
 4. `Authentication -> URL Configuration` altinda `Site URL` degerini `http://localhost:3000` yerine production web sitene ya da gecici olarak `episode://auth` degerine cek.
 5. Ayni ekranda Allowed Redirect URLs listesine `episode://auth`, `episode://reset-password` ve `episode://**` ekle.
 6. Confirm veya reset password mailleri hala localhost'a gidiyorsa `Authentication -> Email Templates -> Confirm signup` ve `Reset password` icinde hazir sablonlari kullanabilirsin: Episode logolu hazir template'ler icin `docs/supabase-confirm-signup-template.html` ve `docs/supabase-password-reset-template.html` dosyalarinin iceriklerini ilgili sablon alanlarina yapistir.
-7. Preview build yukluyse JS-only degisiklikler icin EAS Update yeterlidir:
+7. Preview build yüklüyse JS değişiklikleri `main` push'undan sonra otomatik OTA ile gelir. Migration veya worker kontrolü başarısız olursa OTA gönderilmez.
 
-```bash
-npx eas-cli@latest update --channel preview --environment preview --message "Add Supabase auth and sync"
-```
-
-Veritabani migration uygulanmadan uygulama acilir, ancak giris sonrasi liste/profil/yorum senkronizasyonu sunucuya yazamaz.
-
-Arkadaslik ozelligi icin ayrica `supabase/migrations/202607110002_friendships.sql` dosyasini SQL Editor'de calistir.
-Telefondan profil fotografi secme ve yukleme icin `supabase/migrations/202607110003_avatar_storage.sql` dosyasini da calistir. Bu ozellik `expo-image-picker` kullandigi icin mevcut preview build'e EAS Update yetmez; yeni `eas build --platform ios --profile preview` gerekir.
+Arkadaşlık ve avatar Storage migration'ları da aynı zincirde uygulanır. Mevcut build `expo-image-picker` içermiyorsa fotoğraf yükleme için yeni native build gerekir.
 
 ### Ortak katalog cache'ini kurma
 
-1. `supabase/migrations/202607120001_external_api_cache.sql` migration'ını SQL Editor'de çalıştır.
-2. Sunucu secret'larını tanımla ve fonksiyonu JWT doğrulamasını kapatmadan deploy et:
-
-```bash
-npx supabase login
-npx supabase link --project-ref PROJECT_REF
-npx supabase secrets set TMDB_ACCESS_TOKEN=eyJ... OMDB_API_KEY=anahtarin
-npx supabase functions deploy catalog-api
-```
-
-3. `external_api_usage_daily` tablosunu Table Editor'den veya [mimari dokümanındaki](docs/architecture.md) sorguyla izle. OMDb dış istekleri günlük 950'de durur; cache'teki stale puanlar 30 güne kadar servis edilmeye devam eder.
-4. Eski `EXPO_PUBLIC_TMDB_ACCESS_TOKEN` ve `EXPO_PUBLIC_OMDB_API_KEY` değerlerini EAS environment'lardan sil. Kod artık bunları kullanmaz. Mobil taraftaki değişiklik native modül içermediği için mevcut build'e EAS Update gönderilebilir.
+1. Yukarıdaki GitHub Actions/Supabase secret ayarlarını tamamla. Katalog cache migration'ı ve `catalog-api` fonksiyonu otomatik dağıtılır; JWT ayarları `supabase/config.toml` üzerinden korunur.
+2. `external_api_usage_daily` tablosunu Table Editor'den veya [mimari dokümanındaki](docs/architecture.md) sorguyla izle. OMDb dış istekleri günlük 950'de durur; cache'teki stale puanlar 30 güne kadar servis edilmeye devam eder.
+3. Eski `EXPO_PUBLIC_TMDB_ACCESS_TOKEN` ve `EXPO_PUBLIC_OMDB_API_KEY` değerlerini EAS environment'lardan sil. Kod artık bunları kullanmaz.
 
 ## Test kullanicilarina dagitim
 
 1. `eas build --platform ios --profile preview` ile internal distribution build olustur.
 2. EAS'in verdigi QR/linki Apple Developer hesabinda kayitli cihazlara gonder.
 3. Daha genis iOS testi icin App Store Connect'te TestFlight kullan; yeni tester email'lerini ekleyip build'i External Testing'e ac.
-4. Kod tarafinda sadece JS degisiyorsa yeni build almak yerine `npx eas-cli@latest update --channel preview --environment preview --message "..."` yeterli.
+4. Yalnızca JS değişiklikleri için `main` push'u preview OTA güncellemesini otomatik gönderir.
 5. Tester'larin farkli hesaplarla kayit olmasini, kullanici adi belirlemesini, birbirini aratip arkadas istegi gondermesini ve kabul etmesini kontrol et.
 
 ## Kontroller
@@ -97,19 +79,21 @@ npm run validate
 
 Her testin hangi kullanıcı davranışını koruduğu ve hangi komutun ne zaman çalıştırılacağı [test rehberinde](docs/testing.md) açıklanmıştır.
 
+iPhone'daki sürüm kabulü için [TestFlight kontrol listesini](docs/testflight-checklist.md) kullan. Bu listede yeni “İzlendi / Watched” rozeti, bildirimler, hesap/veri ayrımı ve çevrimdışı senaryolar için beklenen sonuçlar bulunur; Deno'nun görevi de açıklanır.
+
 ## Üretime geçiş
 
 1. `npx eas-cli login` ve ardından `npx eas-cli init` çalıştır; oluşan project ID'yi `app.json` içindeki yer tutucuyla değiştir.
 2. Bundle ID/package adlarını kendi şirket alan adına göre güncelle.
-3. GitHub repository secret olarak `EXPO_TOKEN` ekle.
+3. [Dağıtım rehberindeki](docs/notification-deployment.md) GitHub repository secret'larını ekle.
 4. `eas build --platform all --profile preview` ile cihaz build'i test et.
-5. Store kayıtları tamamlanınca `eas build --platform all --profile production --auto-submit` çalıştır.
+5. Store kayıtları tamamlanınca GitHub Actions'ta **Mobile release → Run workflow → main** seç. Backend ve testler tamamlandıktan sonra production build/gönderim başlar.
 
-CI her push ve pull request'te tip, lint, test ve Android production bundle kontrolü yapar. Release workflow'u yalnızca elle tetiklenir; mağazaya yanlışlıkla build göndermez.
+CI pull request'lerde, `develop` push'larında ve dağıtım zincirinde tip, lint, istemci/dağıtım testleri, Android/iOS bundle, Deno kontrolleri ve izole PostgreSQL migration/RLS testlerini çalıştırır. Kod içeren `main` push'ları testlerden sonra Supabase'i dağıtır, worker'ı doğrular ve preview OTA kanalını günceller. Production OTA ve mağaza build'i elle seçilir; backend adımları onlar için de otomatiktir.
 
-## Önerilen üretim mimarisi
+## Üretim mimarisi
 
-Mobil istemcinin yanına küçük bir backend-for-frontend eklenmeli. Bu servis TMDB anahtarını gizler, kullanıcı hesabı ve cihazlar arası senkronizasyonu yönetir, takip edilen dizilerin yayın takvimini periyodik olarak günceller ve Expo Push Service/APNs/FCM üzerinden bildirim yollar. PostgreSQL için temel tablolar: `users`, `media`, `library_items`, `episodes`, `episode_progress`, `devices` ve `notification_preferences`.
+Supabase Auth ve RLS kullanıcı verisini korur; katalog Edge Function'ı TMDB/OMDb anahtarlarını sunucuda tutar. Kalıcı değişiklik günlüğü cihazlar arası senkronizasyonu yönetir. Zamanlanmış bildirim worker'ı yeni bölümleri tarar ve kalıcı inbox/outbox üzerinden Expo Push Service/APNs/FCM'e gönderir. Ana tablolar `profiles`, `library_items`, `episode_progress`, `devices`, `notification_preferences`, `notifications`, `notification_deliveries` ve `episode_release_catalog`'dur.
 
 Kimlik doğrulama için passkey/Apple/Google, hata takibi için Sentry, ürün analitiği için gizlilik odaklı PostHog ve backend tarafında idempotent cron/queue işleri önerilir. TMDB görsel ve veri kullanım şartları ile zorunlu atıf metni mağaza yayını öncesinde eklenmelidir.
 
@@ -129,4 +113,4 @@ src/theme/           Tasarım tokenları
 .eas/workflows/      EAS preview build otomasyonu
 ```
 
-Bu sürüm güçlü bir istemci MVP'sidir. Gerçek kullanıcı hesapları, cihazlar arası senkronizasyon ve sunucudan otomatik push gönderimi için yukarıdaki backend ayrı bir dağıtım birimi olarak geliştirilmelidir.
+İstemci ve backend ayrı dağıtım birimleridir. GitHub Actions bağımlılıkları backend dağıtımını ve worker kontrolünü istemci yayınının önkoşulu yapar; akış [dağıtım rehberinde](docs/notification-deployment.md) açıklanmıştır.

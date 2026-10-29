@@ -5,7 +5,7 @@ import { CommunityPanel } from '../CommunityPanel';
 import { useCommunityStore } from '@/store/community-store';
 import { CommunitySnapshot, fetchCommunitySnapshot, persistComment, softDeleteComment } from '@/features/community/community-repository';
 
-const mockAuth = { user: { id: 'local-test' }, configured: true };
+const mockAuth = { user: { id: 'local-test' }, configured: true, flushSync: jest.fn() };
 jest.mock('@/features/auth/AuthProvider', () => ({ useAuth: () => mockAuth }));
 jest.mock('@/infrastructure/supabase/client', () => ({ isSupabaseConfigured: false, supabase: undefined, requireSupabase: jest.fn() }));
 jest.mock('@/features/community/community-repository', () => ({
@@ -22,13 +22,13 @@ const mockedDelete = jest.mocked(softDeleteComment);
 
 const renderPanel = async (component: React.ReactElement, seed?: { targetKey: string; value: CommunitySnapshot }) => {
   const client = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity, retry: false } } });
-  if (seed) client.setQueryData(['community', seed.targetKey], seed.value);
+  if (seed) client.setQueryData(['community', seed.targetKey, 'local-test', 30], seed.value);
   return await render(<QueryClientProvider client={client}>{component}</QueryClientProvider>);
 };
 
 describe('CommunityPanel', () => {
   beforeEach(() => {
-    useCommunityStore.setState({ comments: [], ratings: {}, deletedCommentIds: [] });
+    useCommunityStore.getState().clearUserData();
     mockedFetch.mockResolvedValue(snapshot);
     mockedPersist.mockResolvedValue();
     mockedDelete.mockResolvedValue();
@@ -69,6 +69,23 @@ describe('CommunityPanel', () => {
     await waitFor(() => expect(screen.queryByText('Silinecek yorum')).toBeNull());
     expect(useCommunityStore.getState().deletedCommentIds).toContain('comment-1');
     alert.mockRestore();
+  });
+
+  it('hides spoiler text until the reader explicitly reveals it', async () => {
+    const comment = { id: 'spoiler-1', targetKey: 'media:movie:1', authorId: 'other', author: 'Other', text: 'Secret ending', spoiler: true, createdAt: new Date().toISOString() };
+    const screen = await renderPanel(<CommunityPanel targetKey="media:movie:1" canReview />, { targetKey: 'media:movie:1', value: { comments: [comment], ratings: [] } });
+    expect(screen.queryByText('Secret ending')).toBeNull();
+    await fireEvent.press(screen.getByText('Spoilerı göster'));
+    expect(screen.getByText('Secret ending')).toBeTruthy();
+  });
+
+  it('queues a comment before flushing progress and review changes', async () => {
+    mockAuth.flushSync.mockResolvedValue(undefined);
+    const screen = await renderPanel(<CommunityPanel targetKey="media:movie:1" canReview />);
+    await fireEvent.changeText(screen.getByPlaceholderText('Spoiler vermeden yorum yaz…'), 'A thoughtful review');
+    await fireEvent.press(screen.getByLabelText('Yorumu gönder'));
+    await waitFor(() => expect(mockAuth.flushSync).toHaveBeenCalled());
+    expect(useCommunityStore.getState().comments).toMatchObject([{ text: 'A thoughtful review', spoiler: false }]);
   });
 
 });

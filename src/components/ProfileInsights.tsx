@@ -3,15 +3,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { LibraryItem } from '@/domain/media';
 import { calculateViewingInsights } from '@/features/profile/watch-time';
 import { colors, radius, spacing } from '@/theme/tokens';
+import { translateGenre } from '@/services/tmdb';
 
 export function ProfileInsights({ library, episodeRuntimes = {}, language = 'tr' }: { library: LibraryItem[]; episodeRuntimes?: Record<string, number>; language?: 'tr' | 'en' }) {
   const insights = calculateViewingInsights(library, episodeRuntimes);
   const en = language === 'en';
-  const balance = insights.dominantType === 'balanced' ? (en ? 'Balanced' : 'Dengeli') : insights.dominantType === 'tv' ? `%${insights.dominantPercent} ${en ? 'series' : 'dizi'}` : insights.dominantType === 'movie' ? `%${insights.dominantPercent} ${en ? 'movies' : 'film'}` : '—';
+  const percent = en ? `${insights.dominantPercent}%` : `%${insights.dominantPercent}`;
+  const balance = insights.dominantType === 'balanced' ? (en ? 'Balanced' : 'Dengeli') : insights.dominantType === 'tv' ? `${percent} ${en ? 'series' : 'dizi'}` : insights.dominantType === 'movie' ? `${percent} ${en ? 'movies' : 'film'}` : '—';
   return <View style={styles.root}>
     <View style={styles.heading}><Ionicons name="analytics-outline" size={17} color={colors.secondary} /><Text style={styles.title}>{en ? 'Viewing insights' : 'İzleme özeti'}</Text></View>
     <View style={styles.cards}>
-      <Insight icon="color-palette-outline" label={en ? 'Favorite genre' : 'Favori tür'} value={insights.favoriteGenre ?? '—'} />
+      <Insight icon="color-palette-outline" label={en ? 'Favorite genre' : 'Favori tür'} value={insights.favoriteGenre ? translateGenre(insights.favoriteGenre, en) : '—'} />
       <Insight icon="tv-outline" label={en ? 'Most watched show' : 'En çok izlenen dizi'} value={insights.topTitle ?? '—'} detail={insights.topTitle ? `${insights.topTitleEpisodes} ${en ? 'episodes' : 'bölüm'}` : undefined} />
       <Insight icon="pie-chart-outline" label={en ? 'Viewing balance' : 'İzleme dağılımı'} value={balance} />
     </View>

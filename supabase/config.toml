@@ -1,0 +1,3 @@
+[functions.notification-worker]
+# The function verifies a private, database-generated Vault secret before any work.
+verify_jwt = false

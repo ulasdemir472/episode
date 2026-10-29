@@ -2,6 +2,7 @@ node_modules/
 .expo/
 dist/
 coverage/
+.tooling/
 .env
 supabase/.env.local
 supabase/.temp/

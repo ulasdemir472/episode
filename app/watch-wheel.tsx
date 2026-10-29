@@ -2,8 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, FlatList, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Haptics from 'expo-haptics';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { Screen } from '@/components/Screen';
@@ -11,7 +10,8 @@ import { MotionPressable } from '@/components/MotionPressable';
 import { Media } from '@/domain/media';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { fetchFriendships } from '@/features/friends/friends-repository';
-import { addWheelEntry, createWatchWheel, fetchWatchWheels, fetchWheelEntries, removeWheelEntry, saveWheelResult } from '@/features/watch-wheel/watch-wheel-repository';
+import { addWheelEntry, createWatchWheel, fetchWatchWheels, fetchWheelEntries, removeWheelEntry, spinWatchWheel } from '@/features/watch-wheel/watch-wheel-repository';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { catalogService } from '@/services/tmdb';
 import { supabase } from '@/infrastructure/supabase/client';
 import { colors, radius, spacing } from '@/theme/tokens';
@@ -25,23 +25,27 @@ export default function WatchWheelScreen() {
   const en = language === 'en';
   const userId = auth.user?.id;
   const queryClient = useQueryClient();
-  const [activeId, setActiveId] = useState<string>();
+  const params = useLocalSearchParams<{ id?: string }>();
+  const [activeId, setActiveId] = useState<string | undefined>(params.id);
   const [creating, setCreating] = useState(false);
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
   const [search, setSearch] = useState('');
-  const [winner, setWinner] = useState<Media>();
+  const [localWinner, setWinner] = useState<Media>();
+  const [spinning, setSpinning] = useState(false);
+  const spinLock = useRef(false);
+  const debouncedSearch = useDebouncedValue(search.trim(), 450);
   const [rotation] = useState(() => new Animated.Value(0));
   const wheelChannel = useRef<RealtimeChannel | null>(null);
 
   const wheels = useQuery({ queryKey: ['watch-wheels', userId], queryFn: () => fetchWatchWheels(userId!), enabled: Boolean(userId), refetchOnMount: 'always' });
-  const resolvedActiveId = activeId ?? wheels.data?.[0]?.id;
+  const resolvedActiveId = wheels.data?.some((wheel) => wheel.id === activeId) ? activeId : wheels.data?.[0]?.id;
   const activeWheel = wheels.data?.find((wheel) => wheel.id === resolvedActiveId);
   const entries = useQuery({ queryKey: ['watch-wheel-entries', resolvedActiveId], queryFn: () => fetchWheelEntries(resolvedActiveId!), enabled: Boolean(resolvedActiveId), refetchOnMount: 'always' });
   const friends = useQuery({ queryKey: ['friends', userId], queryFn: () => fetchFriendships(userId!), enabled: Boolean(userId) });
   const searchResults = useQuery({
-    queryKey: ['wheel-media-search', search, language],
-    queryFn: () => catalogService.search(search, language),
-    enabled: search.trim().length >= 2,
+    queryKey: ['wheel-media-search', debouncedSearch, language],
+    queryFn: () => catalogService.search(debouncedSearch, language),
+    enabled: debouncedSearch.length >= 2,
     staleTime: 60_000,
   });
 
@@ -76,20 +80,23 @@ export default function WatchWheelScreen() {
   const removeEntry = useMutation({ mutationFn: removeWheelEntry, onSuccess: () => { refreshEntries(); announceChange(); } });
 
   const acceptedFriends = useMemo(() => (friends.data ?? []).filter((item) => item.direction === 'friend'), [friends.data]);
-  const spin = () => {
+  const winner = spinning ? localWinner : activeWheel?.result ?? localWinner;
+  const spin = async () => {
     const choices = entries.data ?? [];
-    if (choices.length < 2) return Alert.alert(en ? 'Wheel not ready yet' : 'Çark henüz hazır değil', en ? 'Add at least 2 titles to spin.' : 'Döndürmek için en az 2 film ekleyin.');
-    const pickedIndex = Math.floor(Math.random() * choices.length);
-    const picked = choices[pickedIndex]!.media;
-    setWinner(undefined);
-    rotation.setValue(0);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => undefined);
-    Animated.timing(rotation, { toValue: 5 + (choices.length - pickedIndex) / choices.length, duration: 3600, useNativeDriver: true }).start(({ finished }) => {
-      if (!finished) return;
+    if (choices.length < 2 || spinLock.current) return;
+    spinLock.current = true;
+    setSpinning(true);
+    try {
+      const picked = await spinWatchWheel(resolvedActiveId!, activeWheel?.spunAt);
+      const pickedIndex = choices.findIndex((item) => item.media.type === picked.type && item.media.id === picked.id);
+      setWinner(undefined);
+      rotation.setValue(0);
+      await new Promise<void>((resolve) => Animated.timing(rotation, { toValue: 5 + (choices.length - Math.max(0, pickedIndex)) / choices.length, duration: 3600, useNativeDriver: true }).start(() => resolve()));
       setWinner(picked);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
-      void saveWheelResult(resolvedActiveId!, picked).then(() => { announceChange(); return queryClient.invalidateQueries({ queryKey: ['watch-wheels', userId] }); });
-    });
+      announceChange();
+      await queryClient.invalidateQueries({ queryKey: ['watch-wheels', userId] });
+    } catch { Alert.alert(en ? 'Could not spin the wheel' : 'Çark döndürülemedi', en ? 'Check your connection and try again.' : 'Bağlantını kontrol edip tekrar dene.'); }
+    finally { spinLock.current = false; setSpinning(false); }
   };
 
   if (!userId) return <Screen><Header en={en} /><View style={styles.centerState}><Text style={styles.stateTitle}>{en ? 'Sign in to join the wheel' : 'Çarka katılmak için giriş yap'}</Text></View></Screen>;
@@ -111,7 +118,7 @@ export default function WatchWheelScreen() {
       <View style={styles.gameCard}>
         <View style={styles.liveRow}><View style={styles.liveBadge}><View style={styles.liveDot} /><Text style={styles.liveText}>{en ? 'SHARED WHEEL' : 'ORTAK ÇARK'}</Text></View><Text style={styles.choiceCount}>{entries.data?.length ?? 0} {en ? 'choices' : 'seçenek'}</Text></View>
         <Wheel entries={entries.data?.map((entry) => entry.media) ?? []} rotation={rotation} en={en} />
-        <MotionPressable onPress={spin} disabled={(entries.data?.length ?? 0) < 2} style={styles.spinButton}><LinearGradient colors={['#FFD166', '#FF7A45', '#FF4D8D']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.spinGradient}><Ionicons name="play" size={19} color="#171019" /><Text style={styles.spinText}>{en ? 'SPIN THE WHEEL' : 'ÇARKI DÖNDÜR'}</Text></LinearGradient></MotionPressable>
+        <MotionPressable onPress={() => void spin()} disabled={spinning || (entries.data?.length ?? 0) < 2} style={styles.spinButton}><LinearGradient colors={['#FFD166', '#FF7A45', '#FF4D8D']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.spinGradient}><Ionicons name="play" size={19} color="#171019" /><Text style={styles.spinText}>{en ? 'SPIN THE WHEEL' : 'ÇARKI DÖNDÜR'}</Text></LinearGradient></MotionPressable>
         {winner ? <View style={styles.winner}><Text style={styles.winnerKicker}>{en ? '🎉 TONIGHT' : '🎉 BU GECE'}</Text><Text style={styles.winnerTitle}>{winner.title}</Text><Pressable onPress={() => router.push({ pathname: '/media/[id]', params: { id: String(winner.id), data: JSON.stringify(winner) } })}><Text style={styles.winnerLink}>{en ? 'View details →' : 'Detayları gör →'}</Text></Pressable></View> : activeWheel?.result ? <Text style={styles.lastResult}>{en ? 'Last pick: ' : 'Son seçim: '}<Text style={styles.lastResultStrong}>{activeWheel.result.title}</Text></Text> : null}
       </View>
       <View style={styles.addCard}><View style={styles.addHead}><View><Text style={styles.cardTitle}>{en ? 'Add title to wheel' : 'Çarka film ekle'}</Text><Text style={styles.cardCaption}>{en ? 'Type name, join the game with one tap.' : 'İsmini yaz, tek dokunuşla oyuna kat.'}</Text></View><View style={styles.plusIcon}><Ionicons name="add" size={20} color="#55D6BE" /></View></View><View style={styles.searchWrap}><Ionicons name="search" size={18} color={colors.muted} /><TextInput value={search} onChangeText={setSearch} placeholder={en ? 'Search movie or show…' : 'Film veya dizi ara…'} placeholderTextColor={colors.muted} style={styles.searchInput} /></View>{search.trim().length >= 2 ? <View style={styles.results}>{searchResults.isLoading ? <Text style={styles.emptyText}>{en ? 'Searching…' : 'Aranıyor…'}</Text> : searchResults.data?.slice(0, 5).map((media) => <Pressable key={`${media.type}-${media.id}`} onPress={() => addEntry.mutate(media)} style={styles.resultRow}>{media.posterUrl ? <Image source={{ uri: media.posterUrl }} style={styles.resultPoster} /> : <View style={styles.resultPoster} />}<View style={styles.resultCopy}><Text numberOfLines={1} style={styles.resultTitle}>{media.title}</Text><Text style={styles.resultMeta}>{media.year} · {media.type === 'movie' ? (en ? 'Movie' : 'Film') : (en ? 'Show' : 'Dizi')}</Text></View><View style={styles.resultAdd}><Ionicons name="add" size={18} color="#fff" /></View></Pressable>)}</View> : null}</View>

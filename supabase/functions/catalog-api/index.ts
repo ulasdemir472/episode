@@ -1,4 +1,5 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.118.0';
+import { normalizeTmdbPath } from '../_shared/catalog-contract.ts';
 
 type Service = 'tmdb' | 'omdb';
 type RequestBody = { service?: Service; path?: string; params?: Record<string, string> };
@@ -29,21 +30,6 @@ function json(payload: unknown, status = 200, cache = 'MISS') {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json', 'X-Episode-Cache': cache },
   });
-}
-
-function normalizeTmdbPath(path: string): string {
-  if (!path.startsWith('/') || path.length > 500 || path.includes('://') || path.includes('..')) throw new Error('Invalid TMDB path');
-  const pathname = path.split('?')[0];
-  const allowed = [
-    /^\/trending\/all\/week$/,
-    /^\/search\/multi$/,
-    /^\/discover\/(movie|tv)$/,
-    /^\/tv\/\d+$/,
-    /^\/tv\/\d+\/season\/\d+$/,
-    /^\/(movie|tv)\/\d+\/external_ids$/,
-  ];
-  if (!allowed.some((pattern) => pattern.test(pathname))) throw new Error('TMDB endpoint is not allowed');
-  return path;
 }
 
 function cachePolicy(service: Service, path = ''): CachePolicy {

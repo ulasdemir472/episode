@@ -7,8 +7,9 @@ import { router, useLocalSearchParams } from 'expo-router';
 import type { Href } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Screen } from '@/components/Screen';
+import { NotificationButton } from '@/components/NotificationButton';
+import { t } from '@/i18n/strings';
 import { MediaCard } from '@/components/MediaCard';
-import { MotionPressable } from '@/components/MotionPressable';
 import { ProfileInsights } from '@/components/ProfileInsights';
 import { WatchLevelBadge } from '@/components/WatchLevelBadge';
 import { useAuth } from '@/features/auth/AuthProvider';
@@ -26,19 +27,25 @@ export default function ProfileScreen() {
   const params = useLocalSearchParams<{ tutorialTarget?: string }>();
   const library = useLibraryStore((state) => state.items);
   const episodeRuntimes = useLibraryStore((state) => state.episodeRuntimes);
-  const [firstName, setFirstName] = useState(profile.firstName);
-  const [lastName, setLastName] = useState(profile.lastName);
-  const [username, setUsername] = useState(profile.username);
+  const [firstName, setFirstName] = useState<string>();
+  const [lastName, setLastName] = useState<string>();
+  const [username, setUsername] = useState<string>();
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const isEnglish = profile.language === 'en';
   const watchTime = useWatchMinutes(library, episodeRuntimes);
   const watchedHours = watchTime.isLoading ? '…' : formatWatchHours(watchTime.minutes, profile.language);
   const availableMedia = [...profile.favorites, ...library.map((item) => item.media)].filter((media, index, all) => all.findIndex((item) => item.id === media.id && item.type === media.type) === index);
   const initials = `${profile.firstName[0] ?? 'E'}${profile.lastName[0] ?? ''}`.toUpperCase();
 
-  const saveProfile = () => {
-    profile.setProfileDetails({ firstName, lastName, username, avatarUrl: profile.avatarUrl });
-    Alert.alert(isEnglish ? 'Saved' : 'Kaydedildi', isEnglish ? 'Your profile will sync shortly.' : 'Profilin kısa süre içinde senkronize olacak.');
+  const saveProfile = async () => {
+    if (saving) return;
+    if (username && !/^[a-z0-9._]{3,24}$/i.test(username)) { Alert.alert(isEnglish ? 'Check your username' : 'Kullanıcı adını kontrol et', isEnglish ? 'Use 3–24 letters, numbers, dots or underscores.' : '3–24 harf, rakam, nokta veya alt çizgi kullan.'); return; }
+    setSaving(true);
+    profile.setProfileDetails({ firstName: firstName ?? profile.firstName, lastName: lastName ?? profile.lastName, username: username ?? profile.username, avatarUrl: profile.avatarUrl });
+    try { await auth.flushSync(); setFirstName(undefined); setLastName(undefined); setUsername(undefined); Alert.alert(isEnglish ? 'Saved' : 'Kaydedildi'); }
+    catch (error) { const duplicate = error && typeof error === 'object' && 'code' in error && error.code === '23505'; Alert.alert(t(profile.language, 'error'), duplicate ? (isEnglish ? 'This username is already taken.' : 'Bu kullanıcı adı zaten alınmış.') : t(profile.language, 'savedLocally')); }
+    finally { setSaving(false); }
   };
 
   const pickAvatar = async () => {
@@ -70,37 +77,10 @@ export default function ProfileScreen() {
       profile.setAvatar(publicUrl);
       Alert.alert(isEnglish ? 'Photo updated' : 'Fotoğraf güncellendi', isEnglish ? 'Your new profile photo will sync shortly.' : 'Yeni profil fotoğrafın kısa süre içinde senkronize olacak.');
     } catch {
-      Alert.alert(isEnglish ? 'Upload failed' : 'Yüklenemedi', isEnglish ? 'Run the avatar storage migration and try again.' : 'Avatar storage migration dosyasını çalıştırıp tekrar dene.');
+      Alert.alert(isEnglish ? 'Upload failed' : 'Yüklenemedi', isEnglish ? 'Check your connection and try again.' : 'Bağlantını kontrol edip tekrar dene.');
     } finally {
       setAvatarUploading(false);
     }
-  };
-
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      isEnglish ? 'Delete Account' : 'Hesabı Sil',
-      isEnglish
-        ? 'Are you sure you want to delete your account? All your lists, reviews, ratings, and profile data will be permanently deleted. This action cannot be undone.'
-        : 'Hesabını silmek istediğine emin misin? İzleme listelerin, puanların, yorumların ve tüm profil verilerin kalıcı olarak silinecektir. Bu işlem geri alınamaz.',
-      [
-        { text: isEnglish ? 'Cancel' : 'Vazgeç', style: 'cancel' },
-        {
-          text: isEnglish ? 'Delete Account' : 'Hesabımı Sil',
-          style: 'destructive',
-          onPress: async () => {
-            const result = await auth.deleteAccount();
-            if (result.error) {
-              Alert.alert(isEnglish ? 'Error' : 'Hata', result.error);
-            } else {
-              Alert.alert(
-                isEnglish ? 'Account Deleted' : 'Hesap Silindi',
-                isEnglish ? 'Your account and data have been successfully deleted.' : 'Hesabın ve tüm verilerin başarıyla silindi.'
-              );
-            }
-          },
-        },
-      ]
-    );
   };
 
   return <Screen>
@@ -111,47 +91,22 @@ export default function ProfileScreen() {
     <View style={styles.profileHead}>
       <View style={styles.avatar}>{profile.avatarUrl ? <Image source={{ uri: profile.avatarUrl }} style={styles.avatarImage} /> : <Text style={styles.avatarText}>{initials}</Text>}</View>
       <Text style={styles.name}>{profile.firstName || profile.lastName ? `${profile.firstName} ${profile.lastName}`.trim() : isEnglish ? 'Your profile' : 'Profilin'}</Text>
-      <Text style={styles.stats}>{profile.username ? `@${profile.username} · ` : ''}{watchedHours} {isEnglish ? 'hours watched' : 'saat izlendi'} · {library.length} {isEnglish ? 'titles' : 'yapım'}</Text>
+      <Text style={styles.stats}>{profile.username ? `@${profile.username} · ` : ''}{watchTime.estimated ? t(profile.language, 'estimated') + ' ' : ''}{watchedHours} {isEnglish ? 'hours watched' : 'saat izlendi'} · {library.length} {isEnglish ? 'titles' : 'yapım'}</Text>
     </View>
     <WatchLevelBadge minutes={watchTime.minutes} isLoading={watchTime.isLoading} language={profile.language} />
     <ProfileInsights library={library} episodeRuntimes={episodeRuntimes} language={profile.language} />
 
-    <View style={styles.accountPanel}>
-      <View style={styles.accountInfo}>
-        <Ionicons name={auth.user ? auth.syncStatus === 'error' ? 'cloud-offline-outline' : 'cloud-done-outline' : 'cloud-offline-outline'} size={21} color={auth.user ? auth.syncStatus === 'error' ? colors.primary : colors.success : colors.warning} />
-        <View style={styles.accountCopy}>
-          <Text style={styles.accountTitle}>{auth.user ? (isEnglish ? 'Account connected' : 'Hesap bağlı') : (isEnglish ? 'Local profile' : 'Yerel profil')}</Text>
-          <Text style={styles.accountDetail}>{auth.user?.email ?? (isEnglish ? 'Sign in to sync across devices.' : 'Cihazlar arası senkronizasyon için giriş yap.')}</Text>
-          {auth.user && <Text style={[styles.syncStatus, auth.syncStatus === 'error' && styles.syncError]}>{auth.syncStatus === 'syncing' ? (isEnglish ? 'Syncing...' : 'Senkronize ediliyor...') : auth.syncStatus === 'error' ? (isEnglish ? 'Connection interrupted. Retrying automatically...' : 'Bağlantı kesildi. Otomatik tekrar deneniyor...') : (isEnglish ? 'Synced automatically' : 'Otomatik senkronize')}</Text>}
-        </View>
-      </View>
-      {auth.user ? (
-        <View style={styles.accountActionRow}>
-          <MotionPressable onPress={() => router.push('/reset-password' as Href)} style={styles.accountAction}>
-            <Text style={styles.accountActionText}>{isEnglish ? 'Change password' : 'Şifre değiştir'}</Text>
-          </MotionPressable>
-          <MotionPressable onPress={() => auth.signOut()} style={styles.accountAction}>
-            <Text style={styles.accountActionText}>{isEnglish ? 'Sign out' : 'Çıkış yap'}</Text>
-          </MotionPressable>
-        </View>
-      ) : (
-        <MotionPressable onPress={() => router.push('/auth' as Href)} style={[styles.accountAction, styles.accountActionPrimary]}>
-          <Text style={styles.accountActionPrimaryText}>{isEnglish ? 'Sign in' : 'Giriş yap'}</Text>
-        </MotionPressable>
-      )}
-    </View>
+    <NotificationButton />
+    <Pressable onPress={() => router.push('/settings' as Href)} style={styles.panel}><View style={styles.friendShortcut}><Ionicons name="settings-outline" size={21} color={colors.primary} /><Text style={styles.heading}>{isEnglish ? 'Settings' : 'Ayarlar'}</Text><Ionicons name="chevron-forward" size={20} color={colors.muted} /></View></Pressable>
 
     <View style={styles.panel}>
       <View style={styles.panelTitle}><Ionicons name="person-outline" size={18} color={colors.primary} /><Text style={styles.heading}>{isEnglish ? 'Profile details' : 'Profil bilgileri'}</Text></View>
-      <View style={styles.inputs}><TextInput value={firstName} onChangeText={setFirstName} placeholder={isEnglish ? 'First name' : 'Ad'} placeholderTextColor={colors.muted} style={styles.input} /><TextInput value={lastName} onChangeText={setLastName} placeholder={isEnglish ? 'Last name' : 'Soyad'} placeholderTextColor={colors.muted} style={styles.input} /></View>
-      <TextInput value={username} onChangeText={setUsername} autoCapitalize="none" placeholder={isEnglish ? 'Username' : 'Kullanıcı adı'} placeholderTextColor={colors.muted} style={styles.inputFull} />
-      <View style={styles.profileActions}><Pressable style={styles.secondaryAction} onPress={pickAvatar} disabled={avatarUploading}><Ionicons name="image-outline" size={16} color={colors.text} /><Text style={styles.secondaryActionText}>{avatarUploading ? (isEnglish ? 'Uploading...' : 'Yükleniyor...') : (isEnglish ? 'Choose photo' : 'Fotoğraf seç')}</Text></Pressable><Pressable style={styles.save} onPress={saveProfile}><Text style={styles.saveText}>{isEnglish ? 'Save' : 'Kaydet'}</Text></Pressable></View>
+      <View style={styles.inputs}><TextInput value={firstName ?? profile.firstName} onChangeText={setFirstName} placeholder={isEnglish ? 'First name' : 'Ad'} placeholderTextColor={colors.muted} style={styles.input} /><TextInput value={lastName ?? profile.lastName} onChangeText={setLastName} placeholder={isEnglish ? 'Last name' : 'Soyad'} placeholderTextColor={colors.muted} style={styles.input} /></View>
+      <TextInput value={username ?? profile.username} onChangeText={setUsername} autoCapitalize="none" placeholder={isEnglish ? 'Username' : 'Kullanıcı adı'} placeholderTextColor={colors.muted} style={styles.inputFull} />
+      <View style={styles.profileActions}><Pressable style={styles.secondaryAction} onPress={pickAvatar} disabled={avatarUploading}><Ionicons name="image-outline" size={16} color={colors.text} /><Text style={styles.secondaryActionText}>{avatarUploading ? (isEnglish ? 'Uploading...' : 'Yükleniyor...') : (isEnglish ? 'Choose photo' : 'Fotoğraf seç')}</Text></Pressable><Pressable style={styles.save} disabled={saving} onPress={() => void saveProfile()}><Text style={styles.saveText}>{isEnglish ? 'Save' : 'Kaydet'}</Text></Pressable></View>
     </View>
 
-    <View style={styles.panel}>
-      <View style={styles.panelTitle}><Ionicons name="language-outline" size={18} color={colors.primary} /><Text style={styles.heading}>{isEnglish ? 'App language' : 'Uygulama dili'}</Text></View>
-      <View style={styles.language}><Pressable style={[styles.languageOption, profile.language === 'tr' && styles.languageActive]} onPress={() => profile.setLanguage('tr')}><Text style={[styles.languageText, profile.language === 'tr' && styles.languageTextActive]}>Türkçe</Text></Pressable><Pressable style={[styles.languageOption, profile.language === 'en' && styles.languageActive]} onPress={() => profile.setLanguage('en')}><Text style={[styles.languageText, profile.language === 'en' && styles.languageTextActive]}>English</Text></Pressable></View>
-    </View>
+
 
     <ScrollFocusTarget active={params.tutorialTarget === 'friends'}>
       <FriendsPanel userId={auth.user?.id} isEnglish={isEnglish} />
@@ -162,19 +117,7 @@ export default function ProfileScreen() {
     <View style={styles.sectionHeader}><Text style={styles.heading}>{isEnglish ? 'My favorites' : 'Favorilerim'}</Text><Text style={styles.caption}>{profile.favorites.length}</Text></View>
     {profile.favorites.length > 0 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.favorites}>{profile.favorites.map((media) => <MediaCard key={`${media.type}-${media.id}`} media={media} width={132} />)}</ScrollView> : <View style={styles.favoriteEmpty}><Ionicons name="heart-outline" size={28} color={colors.muted} /><Text style={styles.empty}>{isEnglish ? 'Tap the heart on a movie or show.' : 'Dizi veya film detayındaki kalbe dokun.'}</Text></View>}
 
-    {auth.user && (
-      <View style={styles.dangerZone}>
-        <MotionPressable onPress={handleDeleteAccount} style={styles.deleteAction}>
-          <Ionicons name="trash-outline" size={14} color={colors.primary} />
-          <Text style={styles.deleteActionText}>{isEnglish ? 'Delete account' : 'Hesabı sil'}</Text>
-        </MotionPressable>
-        <Text style={styles.dangerHint}>
-          {isEnglish
-            ? 'Permanently deletes your account and all sync data.'
-            : 'Hesabını ve senkronize edilmiş tüm verilerini kalıcı olarak siler.'}
-        </Text>
-      </View>
-    )}
+
 
     <View style={styles.legalPanel}>
       <Text style={styles.legalTitle}>Episode v1.0.0</Text>

@@ -1,166 +1,71 @@
-import { ReactNode, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, AppState, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, AppState, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Screen } from '@/components/Screen';
+import { NotificationButton } from '@/components/NotificationButton';
+import { ContinueWatching } from '@/components/ContinueWatching';
+import { EpisodeRelease, LibraryItem } from '@/domain/media';
 import { catalogService } from '@/services/tmdb';
-import { enableNotifications, notificationsAreEnabled, scheduleEpisodeReminder } from '@/services/notifications';
+import { enableNotifications } from '@/services/notifications';
+import { updateNotificationPreferences } from '@/features/notifications/notification-repository';
 import { useLibraryStore } from '@/store/library-store';
-import { colors, radius, spacing } from '@/theme/tokens';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { useProfileStore } from '@/store/profile-store';
-import { MotionPressable } from '@/components/MotionPressable';
+import { t } from '@/i18n/strings';
+import { colors, radius, spacing } from '@/theme/tokens';
+import { dateInZone } from '../../supabase/functions/_shared/episode-schedule';
 
-function dateLabel(date: string, en: boolean) {
-  const day = new Date(`${date}T12:00:00`);
-  const today = new Date(); today.setHours(12, 0, 0, 0);
-  const difference = Math.round((day.getTime() - today.getTime()) / 86_400_000);
-  if (difference === 0) return en ? 'Today' : 'Bugün';
-  if (difference === -1) return en ? 'Yesterday' : 'Dün';
-  if (difference === 1) return en ? 'Tomorrow' : 'Yarın';
-  return day.toLocaleDateString(en ? 'en-US' : 'tr-TR', { day: 'numeric', month: 'long' });
-}
-
-function AnimatedEpisodeCheck({ label, onConfirm }: { label: string; onConfirm: () => Promise<boolean> }) {
-  const [progress] = useState(() => new Animated.Value(0));
-  const [busy, setBusy] = useState(false);
-  const confirm = async () => {
-    if (busy) return;
-    setBusy(true);
-    await new Promise<void>((resolve) => Animated.spring(progress, { toValue: 1, speed: 24, bounciness: 10, useNativeDriver: true }).start(() => resolve()));
-    const confirmed = await onConfirm();
-    if (!confirmed) Animated.timing(progress, { toValue: 0, duration: 180, useNativeDriver: true }).start();
-    setBusy(false);
-  };
-  const scale = progress.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] });
-  return <MotionPressable accessibilityRole="checkbox" accessibilityState={{ checked: busy, disabled: busy }} accessibilityLabel={label} onPress={() => void confirm()} style={styles.episodeCheck} pressedScale={0.9}>
-    <Ionicons name="checkmark" size={20} color={colors.muted} />
-    <Animated.View style={[styles.episodeCheckFill, { opacity: progress, transform: [{ scale }] }]}><Ionicons name="checkmark" size={20} color="#fff" /></Animated.View>
-  </MotionPressable>;
-}
-
-function AnimatedContinueCard({ children }: { children: ReactNode }) {
-  const [entrance] = useState(() => new Animated.Value(0));
-  useEffect(() => {
-    Animated.spring(entrance, { toValue: 1, speed: 18, bounciness: 5, useNativeDriver: true }).start();
-  }, [entrance]);
-  const translateX = entrance.interpolate({ inputRange: [0, 1], outputRange: [34, 0] });
-  const scale = entrance.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] });
-  return <Animated.View style={[styles.item, { opacity: entrance, transform: [{ translateX }, { scale }] }]}>{children}</Animated.View>;
-}
-
+type Row = { id: string; kind: 'section'; title: string } | { id: string; kind: 'continue'; item: LibraryItem } | { id: string; kind: 'release'; release: EpisodeRelease; upcoming: boolean };
 export default function ReleasesScreen() {
-  const auth = useAuth();
+  const { user } = useAuth();
   const language = useProfileStore((state) => state.language);
   const en = language === 'en';
-  const [now] = useState(() => Date.now());
-  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const client = useQueryClient();
+  const [now, setNow] = useState(() => new Date());
+  const [enabling, setEnabling] = useState(false);
   const items = useLibraryStore((state) => state.items);
-  const watchedEpisodes = useLibraryStore((state) => state.watchedEpisodes);
-  const toggleEpisode = useLibraryStore((state) => state.toggleEpisode);
-  const reopenForEpisode = useLibraryStore((state) => state.reopenForEpisode);
-  const recordEpisodeRuntimes = useLibraryStore((state) => state.recordEpisodeRuntimes);
-  const followedShows = items.filter((item) => item.media.type === 'tv' && (item.status === 'watching' || item.status === 'completed')).map((item) => item.media);
-  const continuingItems = items
-    .filter((item) => item.media.type === 'tv' && item.status === 'watching' && item.progress?.nextEpisode)
-    .sort((left, right) => (right.progress?.updatedAt ?? '').localeCompare(left.progress?.updatedAt ?? ''));
-  const continuingEpisodeIds = new Set(continuingItems.map((item) => `${item.media.id}:${item.progress!.nextEpisode!.season}:${item.progress!.nextEpisode!.episode}`));
-  const schedule = useQuery({
-    queryKey: ['episode-schedule', followedShows.map((show) => show.id), language],
-    queryFn: () => catalogService.episodeSchedule(followedShows, language),
-    enabled: followedShows.length > 0,
-    staleTime: 15 * 60_000,
-  });
-  const visible = (schedule.data ?? []).filter((release) => !watchedEpisodes[release.id] && !continuingEpisodeIds.has(release.id));
-  const aired = visible.filter((release) => new Date(`${release.airDate}T23:59:59`).getTime() <= now).reverse();
-  const upcoming = visible.filter((release) => new Date(`${release.airDate}T23:59:59`).getTime() > now);
-
+  const watched = useLibraryStore((state) => state.watchedEpisodes);
+  const today = dateInZone(now, Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Istanbul');
+  const shows = items.filter((item) => item.media.type === 'tv' && ['watching', 'completed'].includes(item.status)).map((item) => item.media).sort((a, b) => a.id - b.id);
+  const continuing = items.filter((item) => item.media.type === 'tv' && item.status === 'watching' && item.progress?.nextEpisode).sort((a, b) => (b.progress?.updatedAt ?? '').localeCompare(a.progress?.updatedAt ?? ''));
+  const continuingKeys = new Set(continuing.map((item) => `${item.media.id}:${item.progress!.nextEpisode!.season}:${item.progress!.nextEpisode!.episode}`));
+  const schedule = useQuery({ queryKey: ['episode-schedule', user?.id, shows.map((show) => show.id), language], queryFn: () => catalogService.episodeSchedule(shows, language), enabled: shows.length > 0, staleTime: 15 * 60_000, refetchOnMount: 'always' });
+  const visible = (schedule.data ?? []).filter((release) => !watched[release.id] && !continuingKeys.has(release.id));
+  const aired = visible.filter((release) => release.airDate <= today).reverse();
+  const upcoming = visible.filter((release) => release.airDate > today);
+  const rows: Row[] = [
+    ...continuing.length ? [{ id: 'continue-header', kind: 'section' as const, title: t(language, 'continueWatching') }, ...continuing.map((item): Row => ({ id: `continue:${item.media.id}`, kind: 'continue', item }))] : [],
+    ...aired.length ? [{ id: 'aired-header', kind: 'section' as const, title: en ? 'To watch' : 'İzlenecekler' }, ...aired.map((release): Row => ({ id: release.id, kind: 'release', release, upcoming: false }))] : [],
+    ...upcoming.length ? [{ id: 'upcoming-header', kind: 'section' as const, title: en ? 'Upcoming' : 'Yakında' }, ...upcoming.map((release): Row => ({ id: release.id, kind: 'release', release, upcoming: true }))] : [],
+  ];
   useEffect(() => {
-    for (const release of schedule.data ?? []) {
-      if (new Date(`${release.airDate}T23:59:59`).getTime() <= Date.now() && !watchedEpisodes[release.id]) {
-        reopenForEpisode(release.show, release.season, release.episode);
-      }
-    }
-  }, [reopenForEpisode, schedule.data, watchedEpisodes]);
-
+    const timer = setInterval(() => setNow(new Date()), 60_000);
+    const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') { setNow(new Date()); void client.invalidateQueries({ queryKey: ['episode-schedule'] }); } });
+    return () => { clearInterval(timer); subscription.remove(); };
+  }, [client]);
   useEffect(() => {
-    const refreshPermission = () => notificationsAreEnabled().then(setNotificationsEnabled).catch(() => setNotificationsEnabled(false));
-    refreshPermission();
-    const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') refreshPermission(); });
-    return () => subscription.remove();
-  }, []);
-
-  const configureNotifications = async () => {
-    const enabled = await enableNotifications(auth.user?.id);
-    setNotificationsEnabled(enabled);
-    if (enabled) await Promise.all(upcoming.map((release) => {
-      const planned = new Date(`${release.airDate}T12:00:00`);
-      const reminder = planned.getTime() > Date.now() ? planned : new Date(Date.now() + 60_000);
-      return scheduleEpisodeReminder(release.id, en ? `${release.show.title} is now streaming` : `${release.show.title} yayında`, `S${release.season} · ${en ? 'E' : 'B'}${release.episode} “${release.title}”`, reminder);
-    }));
-    Alert.alert(
-      enabled ? (en ? 'Notifications enabled' : 'Bildirimler açık') : (en ? 'Notification permission required' : 'Bildirim izni gerekli'),
-      enabled
-        ? (en ? `Reminders updated for ${upcoming.length} upcoming episodes. Friend requests and comment interactions will also be notified.` : `${upcoming.length} yaklaşan bölüm için hatırlatıcılar güncellendi. Arkadaşlık istekleri ve yorum etkileşimleri de bildirilecek.`)
-        : (en ? 'Please enable notification permissions for Episode in Settings.' : 'Ayarlar’dan Episode için bildirim iznini açmalısın.')
-    );
-  };
-
-  const renderRelease = (release: (typeof visible)[number], isUpcoming: boolean) => <Pressable key={release.id} onPress={() => router.push({ pathname: '/media/[id]', params: { id: String(release.show.id), data: JSON.stringify(release.show) } })} style={styles.item}>
-    <Image source={{ uri: release.show.posterUrl }} style={styles.poster} />
-    <View style={styles.info}><Text style={styles.show}>{release.show.title}</Text><Text style={styles.episode}>S{release.season} · {en ? 'E' : 'B'}${release.episode}  “{release.title}”</Text><Text style={[styles.time, isUpcoming && styles.upcoming]}>{dateLabel(release.airDate, en)} {isUpcoming ? (en ? 'airs' : 'yayınlanacak') : (en ? 'aired' : 'yayınlandı')}</Text></View>
-    {!isUpcoming && <Pressable accessibilityLabel={en ? 'Mark as watched' : 'İzlendi işaretle'} onPress={(event) => { event.stopPropagation(); const runtime = items.find((item) => item.media.id === release.show.id)?.progress?.runtimeMinutes; toggleEpisode(release.show, release.season, release.episode, [], runtime); }} style={styles.check}><Ionicons name="checkmark" size={20} color={colors.muted} /></Pressable>}
-  </Pressable>;
-
-  const markContinueWatched = async (item: (typeof continuingItems)[number]): Promise<boolean> => {
-    const next = item.progress?.nextEpisode;
-    if (!next) return false;
-    const episodeId = `${item.media.id}:${next.season}:${next.episode}`;
+    for (const release of schedule.data ?? []) if (release.airDate <= today && !watched[release.id]) useLibraryStore.getState().reopenForEpisode(release.show, release.season, release.episode);
+  }, [schedule.data, today, watched]);
+  const enable = async () => {
+    if (!user || enabling) return;
+    setEnabling(true);
     try {
-      let runtime = item.progress?.runtimeMinutes;
-      let seasons = item.progress?.seasons?.map((season) => ({ id: season.number, number: season.number, name: `${season.number}. ${en ? 'Season' : 'Sezon'}`, episodeCount: season.episodeCount })) ?? [];
-      if (seasons.length === 0) {
-        const details = await catalogService.seriesDetails(item.media.id, language);
-        seasons = details.seasons;
-        runtime = details.episodeRunTime ?? runtime;
-      }
-      toggleEpisode(item.media, next.season, next.episode, seasons, runtime);
-      void catalogService.seasonEpisodes(item.media.id, next.season, language).then((episodes) => {
-        const episode = episodes.find((candidate) => candidate.number === next.episode);
-        if (episode?.runtime) recordEpisodeRuntimes(item.media.id, { [episodeId]: episode.runtime }, runtime);
-      }).catch(() => undefined);
-      return true;
-    } catch {
-      Alert.alert(en ? 'Could not update episode' : 'Bölüm güncellenemedi', en ? 'Could not retrieve season information. Please try again.' : 'Sezon bilgisi alınamadı. Lütfen tekrar dene.');
-      return false;
-    }
+      const granted = await enableNotifications(user.id);
+      if (!granted) { Alert.alert(t(language, 'preferences'), t(language, 'permissionNeeded')); return; }
+      await updateNotificationPreferences(user.id, { new_episodes: true, push_enabled: true, time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Istanbul' });
+      await client.invalidateQueries({ queryKey: ['notification-preferences', user.id] });
+      Alert.alert(en ? 'Notifications enabled' : 'Bildirimler açık', t(language, 'episodeNotificationNote'));
+    } catch { Alert.alert(t(language, 'error'), t(language, 'registrationError')); }
+    finally { setEnabling(false); }
   };
-
-  const renderContinue = (item: (typeof continuingItems)[number]) => {
-    const next = item.progress!.nextEpisode!;
-    const episodeId = `${item.media.id}:${next.season}:${next.episode}`;
-    return <AnimatedContinueCard key={episodeId}>
-      <Pressable accessibilityLabel={`${item.media.title} ${en ? 'details' : 'ayrıntılarını aç'}`} onPress={() => router.push({ pathname: '/media/[id]', params: { id: String(item.media.id), data: JSON.stringify(item.media) } })} style={styles.episodeLink}>
-        <Image source={{ uri: item.media.posterUrl }} style={styles.poster} />
-        <View style={styles.info}><Text style={styles.show}>{item.media.title}</Text><Text style={styles.episode}>{en ? 'Continue' : 'Kaldığın yer'} · S{next.season} · {en ? 'E' : 'B'}{next.episode}</Text><Text style={styles.continue}>{en ? 'View details' : 'Ayrıntıya git'}</Text></View>
-      </Pressable>
-      <AnimatedEpisodeCheck key={episodeId} label={`${item.media.title} S${next.season} ${en ? 'E' : 'B'}${next.episode} ${en ? 'mark as watched' : 'izlendi işaretle'}`} onConfirm={() => markContinueWatched(item)} />
-    </AnimatedContinueCard>;
-  };
-
-  return <Screen>
-    <View style={styles.header}><Text style={styles.kicker}>{en ? 'YOUR SCHEDULE' : 'TAKVİMİN'}</Text><Text style={styles.title}>{en ? 'New episodes' : 'Yeni bölümler'}</Text><Text style={styles.subtitle}>{en ? 'Actual air dates for shows you follow.' : 'İzlediğin dizilerin gerçek yayın takvimi.'}</Text><Pressable style={[styles.notify, notificationsEnabled && styles.notifyEnabled]} onPress={() => void configureNotifications()}><Ionicons name={notificationsEnabled ? 'checkmark-circle' : 'notifications-outline'} size={18} color={notificationsEnabled ? colors.success : colors.text} /><Text style={[styles.notifyText, notificationsEnabled && styles.notifyTextEnabled]}>{notificationsEnabled ? (en ? 'Notifications on' : 'Bildirimler açık') : (en ? 'Turn on notifications' : 'Bildirimleri aç')}</Text></Pressable></View>
-    {continuingItems.length > 0 && <><View style={styles.dateRow}><Text style={styles.date}>{en ? 'CONTINUE WATCHING' : 'KALDIĞIN YER'}</Text><View style={styles.line} /></View>{continuingItems.map(renderContinue)}</>}
-    {followedShows.length === 0 ? <View style={styles.emptyBox}><Ionicons name="calendar-outline" size={34} color={colors.muted} /><Text style={styles.emptyTitle}>{en ? 'No shows followed' : 'Takip edilen dizi yok'}</Text><Text style={styles.empty}>{en ? 'When you mark a show episode as watched, its air schedule will appear here.' : 'Bir dizinin bölümünü izledin olarak işaretlediğinde yayın takvimi burada görünür.'}</Text></View> : schedule.isLoading ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : schedule.isError ? <View style={styles.emptyBox}><Text style={styles.error}>{en ? 'Could not load air schedule.' : 'Yayın takvimi alınamadı.'}</Text><Pressable onPress={() => schedule.refetch()}><Text style={styles.retry}>{en ? 'Try again' : 'Tekrar dene'}</Text></Pressable></View> : visible.length === 0 ? <View style={styles.emptyBox}><Ionicons name="checkmark-circle-outline" size={36} color={colors.success} /><Text style={styles.emptyTitle}>{en ? 'All caught up' : 'Her şey güncel'}</Text><Text style={styles.empty}>{en ? 'No missed episodes in the last 30 days or upcoming episodes scheduled.' : 'Son 30 günde kaçırdığın veya planlanmış yeni bir bölüm yok.'}</Text></View> : <>
-      {aired.length > 0 && <><View style={styles.dateRow}><Text style={styles.date}>{en ? 'TO WATCH' : 'İZLENECEKLER'}</Text><View style={styles.line} /></View>{aired.map((release) => renderRelease(release, false))}</>}
-      {upcoming.length > 0 && <><View style={styles.dateRow}><Text style={styles.date}>{en ? 'UPCOMING' : 'YAKINDA'}</Text><View style={styles.line} /></View>{upcoming.map((release) => renderRelease(release, true))}</>}
-    </>}
-  </Screen>;
+  const header = <><View style={styles.header}><Text style={styles.kicker}>{en ? 'YOUR SCHEDULE' : 'TAKVİMİN'}</Text><Text style={styles.title}>{en ? 'New episodes' : 'Yeni bölümler'}</Text><Text style={styles.subtitle}>{en ? 'Upcoming episodes and everything you missed in the last 30 days.' : 'Yaklaşan bölümler ve son 30 günde kaçırdıkların.'}</Text><Pressable disabled={enabling} accessibilityRole="button" style={styles.notify} onPress={() => void enable()}><Ionicons name="notifications-outline" size={19} color={colors.text} /><Text style={styles.notifyText}>{enabling ? t(language, 'loading') : t(language, 'enablePush')}</Text></Pressable></View><NotificationButton /></>;
+  return <Screen scroll={false}><FlatList data={rows} keyExtractor={(row) => row.id} ListHeaderComponent={header} contentContainerStyle={{ paddingBottom: 120 }} refreshing={schedule.isRefetching} onRefresh={() => { setNow(new Date()); void schedule.refetch(); }} ListEmptyComponent={schedule.isLoading ? <ActivityIndicator color={colors.primary} /> : <View style={styles.empty}><Ionicons name="calendar-outline" size={36} color={colors.muted} /><Text style={styles.emptyTitle}>{schedule.isError ? (en ? 'Could not load the schedule' : 'Yayın takvimi yüklenemedi') : shows.length ? (en ? 'No new episodes' : 'Yeni bölüm yok') : (en ? 'Follow your first show' : 'İlk dizini takip et')}</Text><Text style={styles.subtitle}>{schedule.isError ? t(language, 'detailError') : shows.length ? (en ? 'Your upcoming episodes will appear here.' : 'Yaklaşan bölümlerin burada görünecek.') : (en ? 'Mark an episode watched to start following a show.' : 'Bir bölümü izlendi işaretleyerek diziyi takip etmeye başla.')}</Text><Pressable onPress={() => schedule.isError ? schedule.refetch() : router.push('/discover')} style={styles.notify}><Text style={styles.notifyText}>{t(language, schedule.isError ? 'retry' : 'findTitle')}</Text></Pressable></View>} renderItem={({ item }) => {
+    if (item.kind === 'section') return <Text style={styles.section}>{item.title}</Text>;
+    if (item.kind === 'continue') return <ContinueWatching item={item.item} />;
+    const release = item.release;
+    return <Pressable onPress={() => router.push({ pathname: '/media/[id]', params: { id: String(release.show.id), type: 'tv', season: String(release.season), episode: String(release.episode), targetKey: `episode:${release.id}` } })} style={styles.item}><Image source={{ uri: release.show.posterUrl }} style={styles.poster} /><View style={styles.copy}><Text style={styles.show}>{release.show.title}</Text><Text style={styles.episode}>S{release.season} · {en ? 'E' : 'B'}{release.episode} · {release.title}</Text><Text style={[styles.date, item.upcoming && { color: colors.warning }]}>{release.airDate === today ? (en ? 'Today' : 'Bugün') : new Date(`${release.airDate}T12:00:00`).toLocaleDateString(en ? 'en-US' : 'tr-TR', { day: 'numeric', month: 'long' })}</Text></View>{!item.upcoming && <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: false }} accessibilityLabel={en ? 'Mark as watched' : 'İzlendi işaretle'} onPress={(event) => { event.stopPropagation(); useLibraryStore.getState().toggleEpisode(release.show, release.season, release.episode, []); }} style={styles.check}><Ionicons name="checkmark" size={23} color={colors.success} /></Pressable>}</Pressable>;
+  }} /></Screen>;
 }
-
-const styles = StyleSheet.create({
-  header: { padding: spacing.lg }, kicker: { color: colors.primary, fontSize: 10, letterSpacing: 1.7, fontWeight: '800' }, title: { color: colors.text, fontSize: 34, fontWeight: '900', letterSpacing: -1, marginTop: 4 }, subtitle: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: spacing.sm }, notify: { alignSelf: 'flex-start', marginTop: spacing.lg, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, paddingHorizontal: 15, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }, notifyEnabled: { borderColor: 'rgba(101,214,166,.35)', backgroundColor: 'rgba(101,214,166,.08)' }, notifyText: { color: colors.text, fontWeight: '700', fontSize: 12 }, notifyTextEnabled: { color: colors.success },
-  dateRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginHorizontal: spacing.lg, marginVertical: spacing.md }, date: { color: colors.primary, fontSize: 10, fontWeight: '900', letterSpacing: 1.4 }, line: { height: 1, backgroundColor: colors.border, flex: 1 }, item: { marginHorizontal: spacing.lg, marginBottom: spacing.md, flexDirection: 'row', alignItems: 'center', padding: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border }, episodeLink: { flex: 1, flexDirection: 'row', alignItems: 'center' }, poster: { width: 58, height: 82, borderRadius: radius.sm }, info: { flex: 1, paddingHorizontal: spacing.md }, show: { color: colors.text, fontWeight: '800', fontSize: 15 }, episode: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 5 }, continue: { color: colors.success, fontSize: 10, fontWeight: '700', marginTop: 6 }, episodeCheck: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, episodeCheckFill: { position: 'absolute', inset: 0, borderRadius: 19, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center' }, time: { color: colors.success, fontSize: 10, fontWeight: '700', marginTop: 6 }, upcoming: { color: colors.warning }, check: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  loader: { marginTop: 80 }, emptyBox: { alignItems: 'center', paddingHorizontal: spacing.xl, marginTop: 70 }, emptyTitle: { color: colors.text, fontSize: 18, fontWeight: '800', marginTop: spacing.md }, empty: { color: colors.muted, lineHeight: 20, textAlign: 'center', marginTop: spacing.sm }, error: { color: colors.primary, fontWeight: '700' }, retry: { color: colors.text, fontWeight: '800', marginTop: spacing.md },
-});
+const styles = StyleSheet.create({ header: { padding: spacing.lg }, kicker: { color: colors.primary, fontSize: 12, fontWeight: '800' }, title: { color: colors.text, fontSize: 34, fontWeight: '900', marginTop: 5 }, subtitle: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: spacing.sm }, notify: { marginTop: spacing.md, minHeight: 48, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, paddingHorizontal: spacing.md }, notifyText: { color: colors.text, fontWeight: '700', fontSize: 13 }, section: { color: colors.text, fontSize: 19, fontWeight: '900', margin: spacing.lg }, item: { marginHorizontal: spacing.lg, marginBottom: spacing.sm, flexDirection: 'row', alignItems: 'center', padding: spacing.sm, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, poster: { width: 48, height: 70, borderRadius: radius.sm }, copy: { flex: 1, paddingHorizontal: spacing.sm }, show: { color: colors.text, fontSize: 15, fontWeight: '800' }, episode: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5 }, date: { color: colors.success, fontSize: 12, marginTop: 5 }, check: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }, empty: { margin: spacing.xl, alignItems: 'center' }, emptyTitle: { color: colors.text, fontSize: 19, fontWeight: '800', marginTop: spacing.md } });

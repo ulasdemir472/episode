@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { t } from '@/i18n/strings';
 import { Screen } from '@/components/Screen';
 import { MediaCard } from '@/components/MediaCard';
-import { MediaType } from '@/domain/media';
+import { MediaType, mediaKey } from '@/domain/media';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { catalogService } from '@/services/tmdb';
 import { colors, radius, spacing } from '@/theme/tokens';
@@ -28,8 +29,8 @@ const genres: Genre[] = [
   { tr: 'Animasyon', en: 'Animation', movie: 16, tv: 16 },
   { tr: 'Suç', en: 'Crime', movie: 80, tv: 80 },
   { tr: 'Gizem', en: 'Mystery', movie: 9648, tv: 9648 },
-  { tr: 'Romantik', en: 'Romance', movie: 10749, tv: 10749 },
-  { tr: 'Korku', en: 'Horror', movie: 27, tv: 9648 },
+  { tr: 'Romantik', en: 'Romance', movie: 10749, tv: 0 },
+  { tr: 'Korku', en: 'Horror', movie: 27, tv: 0 },
   { tr: 'Aile', en: 'Family', movie: 10751, tv: 10751 },
   { tr: 'Belgesel', en: 'Documentary', movie: 99, tv: 99 },
   { tr: 'Bilim Kurgu', en: 'Sci-Fi', movie: 878, tv: 10765 },
@@ -43,33 +44,30 @@ export default function DiscoverScreen() {
   const debouncedQuery = useDebouncedValue(query.trim(), 450);
   const [type, setType] = useState<TypeFilter>('all');
   const [genre, setGenre] = useState<Genre>();
+  const [year, setYear] = useState('');
+  const [minRating, setMinRating] = useState(0);
+  const debouncedYear = useDebouncedValue(year, 450);
+  const selectedYear = /^\d{4}$/.test(debouncedYear) ? debouncedYear : '';
+  const { width } = useWindowDimensions();
+  const columns = Math.max(2, Math.min(4, Math.floor((width - 48) / 158)));
+  const cardWidth = (width - 48 - (columns - 1) * 12) / columns;
   const searching = query.trim().length > 1;
 
-  const search = useQuery({
-    queryKey: ['search', debouncedQuery, language],
-    queryFn: () => catalogService.search(debouncedQuery, language),
-    enabled: debouncedQuery.length > 1,
-  });
-  const trending = useQuery({
-    queryKey: ['trending', language],
-    queryFn: () => catalogService.trending(language),
-    enabled: !searching && type === 'all',
-  });
+  const search = useInfiniteQuery({ queryKey: ['search', debouncedQuery, language], initialPageParam: 1, queryFn: ({ pageParam }) => catalogService.searchPage(debouncedQuery, pageParam, language), getNextPageParam: (last) => last.nextPage, enabled: debouncedQuery.length > 1 });
+  const trending = useQuery({ queryKey: ['trending', language], queryFn: () => catalogService.trending(language), enabled: !searching && type === 'all' });
   const genreId = type === 'movie' ? genre?.movie : type === 'tv' ? genre?.tv : undefined;
-  const discovery = useQuery({
-    queryKey: ['discover', type, genreId, language],
-    queryFn: () => catalogService.discover(type as MediaType, genreId, 3, language),
-    enabled: !searching && type !== 'all',
-  });
+  const discovery = useInfiniteQuery({ queryKey: ['discover', type, genreId, selectedYear, minRating, language], initialPageParam: 1, queryFn: ({ pageParam }) => catalogService.discoverPage(type as MediaType, { genreId, year: selectedYear, minRating, page: pageParam }, language), getNextPageParam: (last) => last.nextPage, enabled: !searching && type !== 'all' });
   const activeQuery = searching ? search : type === 'all' ? trending : discovery;
-  const data = activeQuery.data ?? [];
+  const moreQuery = searching ? search : type === 'all' ? undefined : discovery;
+  const rawData = searching ? search.data?.pages.flatMap((page) => page.items) ?? [] : type === 'all' ? trending.data ?? [] : discovery.data?.pages.flatMap((page) => page.items) ?? [];
+  const data = [...new Map(rawData.map((item) => [mediaKey(item), item])).values()];
 
   const changeType = (next: TypeFilter) => {
     setType(next);
     if (next === 'all') setGenre(undefined);
   };
 
-  return <Screen>
+  const header = <>
     <View style={styles.header}>
       <Text style={styles.kicker}>{en ? 'FIND A NEW STORY' : 'YENİ BİR HİKÂYE BUL'}</Text>
       <Text style={styles.title}>{en ? 'Discover' : 'Keşfet'}</Text>
@@ -82,12 +80,13 @@ export default function DiscoverScreen() {
       </ScrollView>
       {type !== 'all' && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.genres}>
         <MotionPressable onPress={() => setGenre(undefined)} style={[styles.genre, !genre && styles.genreActive]}><Text style={[styles.genreText, !genre && styles.genreTextActive]}>{en ? 'Popular' : 'Popüler'}</Text></MotionPressable>
-        {genres.map((item) => <MotionPressable key={item.en} onPress={() => setGenre(item)} style={[styles.genre, genre?.en === item.en && styles.genreActive]}><Text style={[styles.genreText, genre?.en === item.en && styles.genreTextActive]}>{en ? item.en : item.tr}</Text></MotionPressable>)}
+        {genres.filter((item) => type !== 'tv' || item.tv > 0).map((item) => <MotionPressable key={item.en} onPress={() => setGenre(item)} style={[styles.genre, genre?.en === item.en && styles.genreActive]}><Text style={[styles.genreText, genre?.en === item.en && styles.genreTextActive]}>{en ? item.en : item.tr}</Text></MotionPressable>)}
       </ScrollView>}
     </>}
 
-    {activeQuery.isLoading || activeQuery.isFetching ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : activeQuery.isError ? <Text style={styles.empty}>{en ? 'Content could not be loaded.' : 'İçerikler yüklenemedi.'}</Text> : <FlatList scrollEnabled={false} data={data} keyExtractor={(item) => `${item.type}-${item.id}`} numColumns={2} columnWrapperStyle={styles.row} contentContainerStyle={styles.grid} renderItem={({ item }) => <MediaCard media={item} width={158} />} ListEmptyComponent={<Text style={styles.empty}>{en ? 'No results found.' : 'Sonuç bulunamadı.'}</Text>} />}
-  </Screen>;
+    {!searching && type !== 'all' && <View style={{ paddingHorizontal: spacing.lg, marginBottom: spacing.md, flexDirection: 'row', gap: 10, alignItems: 'center' }}><TextInput accessibilityLabel={t(language, 'year')} placeholder={t(language, 'anyYear')} placeholderTextColor={colors.muted} value={year} onChangeText={(value) => setYear(value.replace(/[^0-9]/g, '').slice(0, 4))} keyboardType="number-pad" style={[styles.input, { backgroundColor: colors.surface, padding: 12, borderRadius: radius.sm }]} /><MotionPressable onPress={() => setMinRating(minRating === 0 ? 7 : minRating === 7 ? 8 : 0)} style={styles.typeFilter}><Text style={styles.filterText}>{t(language, 'minRating')}: {minRating || '—'}</Text></MotionPressable></View>}
+  </>;
+  return <Screen scroll={false}><FlatList keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" key={columns} data={data} keyExtractor={mediaKey} numColumns={columns} ListHeaderComponent={header} columnWrapperStyle={[styles.row, { paddingHorizontal: spacing.lg }]} contentContainerStyle={{ paddingBottom: 120 }} renderItem={({ item }) => <MediaCard media={item} width={cardWidth} inGrid />} onEndReached={() => { if (moreQuery?.hasNextPage && !moreQuery.isFetchingNextPage) void moreQuery.fetchNextPage(); }} onEndReachedThreshold={0.4} refreshing={activeQuery.isRefetching && !moreQuery?.isFetchingNextPage} onRefresh={() => { void activeQuery.refetch(); }} ListFooterComponent={moreQuery?.isFetchingNextPage ? <ActivityIndicator color={colors.primary} /> : null} ListEmptyComponent={activeQuery.isLoading ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : activeQuery.isError ? <MotionPressable onPress={() => activeQuery.refetch()}><Text style={styles.empty}>{en ? 'Content could not be loaded.' : 'İçerikler yüklenemedi.'} {t(language, 'retry')}</Text></MotionPressable> : <Text style={styles.empty}>{en ? 'No results found.' : 'Sonuç bulunamadı.'}</Text>} /></Screen>;
 }
 
 const styles = StyleSheet.create({

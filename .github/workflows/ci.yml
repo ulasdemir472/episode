@@ -1,8 +1,9 @@
 name: CI
 on:
+  workflow_call:
   pull_request:
   push:
-    branches: [main, develop]
+    branches: [develop]
 permissions:
   contents: read
 concurrency:
@@ -21,4 +22,24 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm validate
-      - run: pnpm exec expo export --platform android
+      - run: pnpm exec expo export --platform android --output-dir dist/android
+      - run: pnpm exec expo export --platform ios --output-dir dist/ios
+  edge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.6
+      - run: deno check supabase/functions/catalog-api/index.ts supabase/functions/notification-worker/index.ts supabase/functions/delete-account/index.ts
+      - run: deno test supabase/functions/_tests
+  database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13
+      - run: node scripts/test-database.mjs

@@ -12,18 +12,27 @@ on:
         default: true
 permissions:
   contents: read
+concurrency:
+  group: episode-deployment-${{ github.repository }}
+  cancel-in-progress: false
 jobs:
+  backend:
+    uses: ./.github/workflows/supabase-deploy.yml
+    secrets: inherit
   build:
+    needs: backend
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22.13
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
-      - run: pnpm validate
       - uses: expo/expo-github-action@v8
         with:
           eas-version: latest
@@ -31,10 +40,12 @@ jobs:
       - name: EAS Build
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          AUTO_SUBMIT: ${{ inputs.auto_submit }}
+          PLATFORM: ${{ inputs.platform }}
         run: |
           AUTO_SUBMIT_FLAG=""
-          if [ "${{ inputs.auto_submit }}" = "true" ]; then
+          if [ "$AUTO_SUBMIT" = "true" ]; then
             AUTO_SUBMIT_FLAG="--auto-submit"
           fi
-          eas build --platform ${{ inputs.platform }} --profile production $AUTO_SUBMIT_FLAG --non-interactive --no-wait
+          eas build --platform "$PLATFORM" --profile production $AUTO_SUBMIT_FLAG --non-interactive --no-wait
 
