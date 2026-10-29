@@ -41,27 +41,27 @@ Bu repoda `production` profili `production` güncelleme kanalını kullanır. `m
 - [ ] Türkçe'de **İzlendi**, İngilizce'de **Watched** yazıyor; dil değişikliği kartlara yansıyor.
 - [ ] Rozet TMDB puanı, kişisel puan ve başlıkla üst üste binmiyor. Küçük ekranda ve büyütülmüş sistem yazı boyutunda okunuyor; kart dokunulabilir durumda.
 - [ ] VoiceOver açıkken kart başlığıyla birlikte izlenmiş bilgisi de okunuyor.
-- [ ] Film/dizi filtreleri, tür, yıl ve minimum puan seçenekleri çalışıyor. Aramayı temizleyince keşif içerikleri geri geliyor; aşağı kaydırınca tekrarlanan kartlar oluşmuyor.
+- [ ] Film/dizi ve tür seçenekleri açılır menülerden seçiliyor; minimum puanı örneğin **6,5+** yapabiliyorsun. Aksiyon ve Komedi seçince aynı liste tekrarlanmıyor. Arama sonucunda aradığın yapım geliyor; aramayı temizleyince keşif içerikleri geri geliyor.
 
 ## P0 — Bölüm takibi ve ana sayfa
 
 - [ ] Bir dizide tek bölüm işaretlenince ilerleme sayısı ve sıradaki bölüm doğru değişiyor.
 - [ ] **Buraya kadar hepsi** seçimi önceki bölümleri işaretliyor; başka sezon/diziye ait ilerlemeyi değiştirmiyor.
-- [ ] Ana sayfadaki **Kaldığın yer** bölümünden sıradaki yayımlanmış bölümü tamamlayınca bir sonraki bölüme geçiliyor. Henüz yayımlanmamış bölüm bu hızlı işlemle izlenmiş yapılmıyor.
+- [ ] **Kaldığın yer** yalnızca **Bölümler** sekmesinde. Sıradaki yayımlanmış bölümü tamamlayınca kısa, yumuşak bir geçişle sonraki bölüme geçiliyor. Henüz yayımlanmamış bölüm bu hızlı işlemle izlenmiş yapılmıyor. iOS “Hareketi azalt” açıkken hareket animasyonu yok.
 - [ ] Son bölüm tamamlanınca dizi tamamlandı durumuna geçiyor; bir bölüm geri alınınca yeniden izleniyor durumuna dönüyor.
 - [ ] Günün bölümleri ve öneriler yükleniyor. Listesi boş kullanıcıda uygun boş durum veya keşif önerisi var.
 - [ ] Aynı işlemi ikinci cihazdan yaptıktan sonra verileri yenileyince doğru ilerleme geliyor.
 
 ## P0 — Bildirimlerim ve uygulama kapalıyken push
 
-- [ ] **Bildirimlerim / My notifications** düğmesi bildirim ekranını açıyor; okunmamış sayacı kayıtlarla tutarlı.
+- [ ] Ana sayfa, Keşfet ve Bölümler ekranlarında sağ üstteki **çan simgesi** bildirim ekranını açıyor; okunmamış sayacı kayıtlarla tutarlı. Profilde ve Ayarlar'da ayrı “Bildirimlerim” düğmesi yok.
 - [ ] B hesabından A'ya arkadaşlık isteği gibi yeni bir sosyal olay oluştur. A'nın bildirim listesinde yeni kayıt görünüyor; kendi yaptığı işlem için kendine gereksiz bildirim oluşmuyor.
 - [ ] **Okunmamış** filtresi yalnızca okunmamışları gösteriyor. Bir kaydı açınca okundu oluyor ve sayaç azalıyor; **Tümünü okundu işaretle** sonrası sayaç temizleniyor.
 - [ ] Sosyal bildirim bir yorum/yanıtla ilgiliyse doğru yapımı ve ilgili hedefi açıyor. Yeni bölüm bildirimi doğru diziyi, sezonu ve bölümü açıyor.
 - [ ] A cihazında telefon bildirim izni verildi, uygulama arka plana alındı/kapatıldı. B'den yeni bir sosyal olay oluşturulunca iOS bildirimi geliyor; dokununca doğru ekran açılıyor.
-- [ ] **Telefon bildirimleri** kapalıyken yeni olay inbox'ta görünüyor, telefona push gelmiyor. Açınca sonraki olaylar için push çalışıyor.
+- [ ] **Ayarlar → Bildirimler → Telefon bildirimleri** kapalıyken yeni olay inbox'ta görünüyor, telefona push gelmiyor. **Telefon bildirim ayarları** telefonun kendi ayarlarını açıyor; izni açıp geri dönünce uygulama durumu güncelliyor.
 - [ ] iOS Ayarlar'dan bildirim iznini kapatıp uygulamaya dönünce ekran bunu doğru yansıtıyor. İzni geri açtıktan sonra tercih tekrar etkinleştirilebiliyor.
-- [ ] **Yeni bölümler** ve **Sosyal bildirimler** tercihleri birbirinden bağımsız kaydediliyor; uygulamayı kapatıp açınca korunuyor.
+- [ ] **Ayarlar → Bildirimler** altında **Yeni bölümler** ve **Sosyal bildirimler** tercihleri birbirinden bağımsız kaydediliyor; uygulamayı kapatıp açınca korunuyor. Bildirim kutusunda ve Bölümler ekranında “Push bildirimlerini aç” düğmesi yok.
 - [ ] A'dan çıkış yapıp B'ye geçtikten sonra bu cihaz A'ya ait yeni push'ları almıyor.
 
 ### Yeni bölüm bildirimi için bekleme koşulu
@@ -98,13 +98,13 @@ Takip edilen dizi izleme listesinde **İzliyorum** veya **Tamamlandı** durumund
 - [ ] Arkadaş isteği, kabul ve arkadaşların etkinlikleri A/B hesaplarıyla çalışıyor.
 - [ ] A'nın profil görünürlüğü **Yalnızca ben** olduğunda B, A'nın kısıtlı liste/favori/geçmişini göremiyor. **Arkadaşlar** seçeneğini arkadaş olan ve olmayan hesaplarla karşılaştır; **Tüm üyeler** seçeneğini de doğrula.
 - [ ] A, B'yi engelleyince ilgili yorumlar gizleniyor ve B'den yeni sosyal bildirim gelmiyor. Ayarlar'dan engeli kaldırma çalışıyor.
-- [ ] **Ortak izleme listeleri** ekranında liste oluştur, bir arkadaş ekle ve yapım ekle. Diğer üye yenileyince aynı listeyi görüyor; birlikte izlendi durumu iki tarafta tutarlı.
+- [ ] **Ortak izleme listeleri** ekranında kimseyi seçmeden liste oluştur; arama ile yapım ekle. Sonra **Arkadaş davet et** ile bir arkadaş ekle. Diğer üye yenileyince aynı listeyi görüyor; birlikte izlendi durumu iki tarafta tutarlı. Zaten üye olan kişi tekrar davet seçeneklerinde çıkmıyor.
 - [ ] Ortak listeye üye olmayan üçüncü hesap liste içeriğine erişemiyor. Yapımı/listeyi kaldırma kontrolleri kullanıcının yetkisine uygun.
 - [ ] Watch wheel'e film/dizi ve arkadaş ekle; sonuç doğru yapımı açıyor, yinelenen kayıt oluşmuyor.
 
 ## P1 — Profil, dil ve hesap işlemleri
 
-- [ ] Profil adı, kullanıcı adı, fotoğrafı, kapağı ve favoriler kaydetme/yeniden açma sonrasında korunuyor. Fotoğraf izni reddedilince çökme yok.
+- [ ] Profilde **Kapak seç** ile açılan galeride yapım ara, küçük görsel seçip büyük önizlemeye bak. **Bu kapağı kullan** ile kaydet; iptal ettiğinde mevcut kapak korunmalı. Profil adı, kullanıcı adı, fotoğrafı, kapağı ve favoriler yeniden açma sonrasında korunuyor.
 - [ ] İzleme süresi ve istatistikler film/bölüm değişikliklerine uygun güncelleniyor; aynı kayıt iki kez sayılmıyor.
 - [ ] Ayarlar'dan Türkçe → English → Türkçe geçişinde bildirimler, boş/hata durumları, düğmeler ve **İzlendi/Watched** rozeti doğru dilde. Dil tercihi uygulama yeniden açılınca korunuyor.
 - [ ] Gizlilik ve destek bağlantıları açılıyor; klavye açıkken ve büyük yazı boyutunda temel işlemler erişilebilir.

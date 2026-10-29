@@ -51,6 +51,15 @@ export async function createSharedWatchlist(title: string, memberIds: string[]):
   if (error) throw error;
   return data;
 }
+export async function fetchSharedListMemberIds(listId: string): Promise<string[]> {
+  const { data, error } = await requireSupabase().from('watch_wheel_members').select('user_id').eq('wheel_id', listId);
+  if (error) throw error;
+  return (data ?? []).map((member) => member.user_id);
+}
+export async function inviteSharedListMembers(listId: string, userIds: string[]): Promise<void> {
+  const { error } = await requireSupabase().rpc('invite_shared_watchlist_members', { requested_list: listId, invited_user_ids: [...new Set(userIds)] });
+  if (error) throw error;
+}
 export async function setSharedEntryWatched(entryId: string, watched: boolean): Promise<void> {
   const { error } = await requireSupabase().from('watch_wheel_entries').update({ watched }).eq('id', entryId);
   if (error) throw error;

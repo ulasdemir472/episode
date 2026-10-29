@@ -2,7 +2,7 @@ import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import NotificationsScreen from '../../../../app/notifications';
-import { fetchNotificationPreferences, fetchNotifications, markNotificationsRead, updateNotificationPreferences } from '../notification-repository';
+import { fetchNotificationPreferences, fetchNotifications, markNotificationsRead } from '../notification-repository';
 import { useProfileStore } from '@/store/profile-store';
 import { AppNotification } from '../notification-copy';
 
@@ -24,7 +24,6 @@ beforeEach(() => {
   jest.mocked(fetchNotifications).mockResolvedValue({ items: [notification], nextPage: undefined });
   jest.mocked(fetchNotificationPreferences).mockResolvedValue({ user_id: 'alice', new_episodes: true, social: true, push_enabled: true, time_zone: 'Europe/Istanbul', created_at: '2026-10-29T00:00:00Z' });
   jest.mocked(markNotificationsRead).mockResolvedValue();
-  jest.mocked(updateNotificationPreferences).mockResolvedValue();
 });
 afterEach(async () => { await act(async () => { jest.runOnlyPendingTimers(); }); jest.useRealTimers(); });
 it.each(['tr', 'en'] as const)('renders notifications in %s and opens the exact episode', async (language) => {
@@ -44,11 +43,11 @@ it('filters unread items and marks all notifications read', async () => {
   await fireEvent.press(screen.getByText('Tümünü okundu işaretle'));
   await waitFor(() => expect(markNotificationsRead).toHaveBeenCalledWith('alice', undefined));
 });
-it('saves episode and social preferences independently', async () => {
+it('keeps the inbox focused on notifications, with permission controls in Settings', async () => {
   const screen = await mount();
-  const episodeSwitch = await screen.findByLabelText('Yeni bölümler');
-  await fireEvent(episodeSwitch, 'valueChange', false);
-  await waitFor(() => expect(updateNotificationPreferences).toHaveBeenCalledWith('alice', { new_episodes: false }));
+  await screen.findByText('Show · Yeni bölüm');
+  expect(screen.queryByLabelText('Yeni bölümler')).toBeNull();
+  expect(screen.queryByText('Telefon bildirimlerini aç')).toBeNull();
 });
 it('shows a retryable error instead of claiming there are no notifications', async () => {
   jest.mocked(fetchNotifications).mockRejectedValue(new Error('offline'));

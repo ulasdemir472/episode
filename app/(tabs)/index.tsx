@@ -12,7 +12,6 @@ import { colors, radius, spacing } from '@/theme/tokens';
 import { useProfileStore } from '@/store/profile-store';
 import { useLibraryStore } from '@/store/library-store';
 import { useAuth } from '@/features/auth/AuthProvider';
-import { ContinueWatching } from '@/components/ContinueWatching';
 import { NotificationButton } from '@/components/NotificationButton';
 import { t } from '@/i18n/strings';
 import { dateInZone } from '../../supabase/functions/_shared/episode-schedule';
@@ -21,7 +20,6 @@ export default function HomeScreen() {
   const profile = useProfileStore();
   const { user } = useAuth();
   const library = useLibraryStore((state) => state.items);
-  const continuing = library.filter((item) => item.status === 'watching' && item.progress?.nextEpisode).sort((a, b) => (b.progress?.updatedAt ?? '').localeCompare(a.progress?.updatedAt ?? '')).slice(0, 3);
   const followed = library.filter((item) => item.media.type === 'tv' && (item.status === 'watching' || item.status === 'completed')).map((item) => item.media).sort((a, b) => a.id - b.id);
   const schedule = useQuery({ queryKey: ['episode-schedule', user?.id, followed.map((show) => show.id), profile.language], queryFn: () => catalogService.episodeSchedule(followed, profile.language), enabled: followed.length > 0, staleTime: 15 * 60_000 });
   const today = dateInZone(new Date(), Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Istanbul');
@@ -37,9 +35,7 @@ export default function HomeScreen() {
   });
   const hero = data[0];
   return <Screen>
-    <View style={styles.top}><View><Text style={styles.eyebrow}>{en ? 'WHAT ARE WE WATCHING?' : 'BU GECE NE İZLİYORUZ?'}</Text><Text style={styles.logo}>episode<Text style={styles.dot}>.</Text></Text></View><View style={styles.topActions}><Pressable accessibilityLabel={en ? 'Open watch wheel' : 'Film çarkını aç'} onPress={() => router.push('/watch-wheel' as Href)}><LinearGradient colors={['#FF4D8D', '#FF7A45', '#FFD166']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.wheelButton}><Ionicons name="color-wand" size={19} color="#fff" /><View style={styles.wheelBadge}><Text style={styles.wheelBadgeText}>{en ? 'SPIN' : 'ÇARK'}</Text></View></LinearGradient></Pressable><Pressable onPress={() => router.push('/profile' as Href)} style={styles.avatar}><Text style={styles.avatarText}>{initials}</Text></Pressable></View></View>
-    <NotificationButton />
-    {continuing.length > 0 && <><SectionHeader title={t(profile.language, 'continueWatching')} />{continuing.map((item) => <ContinueWatching key={item.media.type + ':' + item.media.id} item={item} />)}</>}
+    <View style={styles.top}><View><Text style={styles.eyebrow}>{en ? 'WHAT ARE WE WATCHING?' : 'BU GECE NE İZLİYORUZ?'}</Text><Text style={styles.logo}>episode<Text style={styles.dot}>.</Text></Text></View><View style={styles.topActions}><NotificationButton /><Pressable accessibilityLabel={en ? 'Open watch wheel' : 'Film çarkını aç'} onPress={() => router.push('/watch-wheel' as Href)}><LinearGradient colors={['#FF4D8D', '#FF7A45', '#FFD166']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.wheelButton}><Ionicons name="color-wand" size={19} color="#fff" /><View style={styles.wheelBadge}><Text style={styles.wheelBadgeText}>{en ? 'SPIN' : 'ÇARK'}</Text></View></LinearGradient></Pressable><Pressable onPress={() => router.push('/profile' as Href)} style={styles.avatar}><Text style={styles.avatarText}>{initials}</Text></Pressable></View></View>
     {todayEpisodes.length > 0 && <><SectionHeader title={t(profile.language, 'todayEpisodes')} />{todayEpisodes.slice(0, 4).map((release) => <Pressable key={release.id} onPress={() => router.push({ pathname: '/media/[id]', params: { id: String(release.show.id), type: 'tv', season: String(release.season), episode: String(release.episode), targetKey: 'episode:' + release.id } })} style={{ marginHorizontal: spacing.lg, padding: spacing.md, marginBottom: spacing.sm, borderRadius: radius.md, backgroundColor: colors.surface }}><Text style={{ color: colors.text, fontSize: 15, fontWeight: '800' }}>{release.show.title}</Text><Text style={{ color: colors.muted, fontSize: 13, marginTop: 5 }}>S{release.season} {en ? 'E' : 'B'}{release.episode} · {release.title}</Text></Pressable>)}</>}
     {isLoading ? <ActivityIndicator color={colors.primary} style={{ height: 430 }} /> : isError ? <View style={styles.catalogError}><Ionicons name="cloud-offline-outline" size={32} color={colors.muted} /><Text style={styles.errorTitle}>{en ? 'Could not load catalog' : 'Katalog yüklenemedi'}</Text><Pressable onPress={() => refetch()}><Text style={styles.retry}>{en ? 'Try again' : 'Tekrar dene'}</Text></Pressable></View> : hero && <ImageBackground source={{ uri: hero.backdropUrl }} style={styles.hero} imageStyle={styles.heroImage}>
       <LinearGradient colors={['transparent', 'rgba(7,7,10,.3)', colors.background]} style={StyleSheet.absoluteFill} />

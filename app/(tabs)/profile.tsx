@@ -8,7 +8,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import type { Href } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Screen } from '@/components/Screen';
-import { NotificationButton } from '@/components/NotificationButton';
+import { CoverPicker } from '@/components/CoverPicker';
 import { t } from '@/i18n/strings';
 import { MediaCard } from '@/components/MediaCard';
 import { ProfileInsights } from '@/components/ProfileInsights';
@@ -97,7 +97,6 @@ export default function ProfileScreen() {
     <WatchLevelBadge minutes={watchTime.minutes} isLoading={watchTime.isLoading} language={profile.language} />
     <ProfileInsights library={library} episodeRuntimes={episodeRuntimes} language={profile.language} />
 
-    <NotificationButton />
     <Pressable onPress={() => router.push('/settings' as Href)} style={styles.panel}><View style={styles.friendShortcut}><Ionicons name="settings-outline" size={21} color={colors.primary} /><Text style={styles.heading}>{isEnglish ? 'Settings' : 'Ayarlar'}</Text><Ionicons name="chevron-forward" size={20} color={colors.muted} /></View></Pressable>
 
     <View style={styles.panel}>
@@ -113,7 +112,7 @@ export default function ProfileScreen() {
       <FriendsPanel userId={auth.user?.id} isEnglish={isEnglish} />
     </ScrollFocusTarget>
     <View style={styles.sectionHeader}><Text style={styles.heading}>{isEnglish ? 'Profile cover' : 'Profil kapağı'}</Text>{profile.coverUrl ? <Pressable onPress={() => profile.setCover(undefined)} style={styles.removeCover}><Ionicons name="trash-outline" size={14} color={colors.primary} /><Text style={styles.removeCoverText}>{isEnglish ? 'Remove' : 'Kaldır'}</Text></Pressable> : <Text style={styles.caption}>{isEnglish ? 'Choose from your titles' : 'Yapımlarından seç'}</Text>}</View>
-    {availableMedia.length > 0 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.coverChoices}>{availableMedia.map((media) => <Pressable key={`cover-${media.type}-${media.id}`} onPress={() => profile.setCover(media.backdropUrl || media.posterUrl)} style={[styles.coverChoice, profile.coverUrl === (media.backdropUrl || media.posterUrl) && styles.coverSelected]}><Image source={{ uri: media.backdropUrl || media.posterUrl }} style={styles.coverImage} /><Text numberOfLines={1} style={styles.coverTitle}>{media.title}</Text></Pressable>)}</ScrollView> : <Text style={styles.empty}>{isEnglish ? 'Add favorites or library titles to choose a cover.' : 'Kapak seçmek için favori veya listene yapım ekle.'}</Text>}
+    <CoverPicker media={availableMedia} selectedUrl={profile.coverUrl} onSelect={profile.setCover} language={profile.language} />
 
     <View style={styles.sectionHeader}><Text style={styles.heading}>{isEnglish ? 'My favorites' : 'Favorilerim'}</Text><Text style={styles.caption}>{profile.favorites.length}</Text></View>
     {profile.favorites.length > 0 ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.favorites}>{profile.favorites.map((media) => <MediaCard key={`${media.type}-${media.id}`} media={media} width={132} />)}</ScrollView> : <View style={styles.favoriteEmpty}><Ionicons name="heart-outline" size={28} color={colors.muted} /><Text style={styles.empty}>{isEnglish ? 'Tap the heart on a movie or show.' : 'Dizi veya film detayındaki kalbe dokun.'}</Text></View>}

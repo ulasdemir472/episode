@@ -2,6 +2,8 @@
 
 Bu doküman test adlarından çok, her test grubunun hangi kullanıcı davranışını koruduğunu açıklar.
 
+30 Ekim cihaz geri bildirimleri için regresyonlar: gerçek React Native URL polyfill'i ile arama/filtre parametrelerinin korunması; keşfet tür ve sayısal puan seçimi; ortak liste araması, tek kişiyle oluşturma ve sonradan davet; yorum beğenisi/geri alma ve spoiler seçimi; kapak galerisi/önizleme/iptal; çan simgesi ve cihaz bildirim ayarlarına dönüş. PostgreSQL testi, beğeni tetikleyicisindeki yanlış `NEW.parent_comment_id` erişimini gerçek veritabanında yeniden üretir ve düzeltmeyi doğrular.
+
 Fiziksel iPhone'da bu sürümün kabul kontrolleri: [TestFlight kontrol listesi](testflight-checklist.md). Doğru build/kanal seçimi, “İzlendi” rozeti, bildirim teslimi, çevrimdışı işlemler, hesap ayrımı, gizlilik ve ortak liste senaryolarını içerir.
 
 Edge Function kontrolleri `supabase/functions/deno.json` ile çalışır. `nodeModulesDir: none` sayesinde Expo'nun yerel `node_modules` kurulumuna ihtiyaç duymaz; Node tipleri dahil Deno bağımlılıkları kendi önbelleğinden çözülür ve kökteki `deno.lock` ile sabitlenir. CI ve npm komutları `--frozen` kullanır; bağımlılık değişirse kilit dosyası geliştirme sırasında bilinçli güncellenmelidir.

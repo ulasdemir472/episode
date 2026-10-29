@@ -1,0 +1,62 @@
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import SharedListsScreen from '../../../../app/shared-lists';
+import * as repository from '../watch-wheel-repository';
+import { fetchFriendships } from '@/features/friends/friends-repository';
+import { catalogService } from '@/services/tmdb';
+import { useProfileStore } from '@/store/profile-store';
+import { Media } from '@/domain/media';
+jest.mock('expo-router', () => ({ router: { back: jest.fn(), push: jest.fn() }, useLocalSearchParams: () => ({}) }));
+jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: jest.requireActual('react-native').View }));
+jest.mock('@/features/auth/AuthProvider', () => ({ useAuth: () => ({ user: { id: 'alice' } }) }));
+jest.mock('@/infrastructure/supabase/client', () => ({ supabase: undefined }));
+jest.mock('../watch-wheel-repository', () => ({ fetchWatchWheels: jest.fn(), fetchWheelEntries: jest.fn(), fetchSharedListMemberIds: jest.fn(), createSharedWatchlist: jest.fn(), inviteSharedListMembers: jest.fn(), addWheelEntry: jest.fn(), setSharedEntryWatched: jest.fn(), removeWheelEntry: jest.fn(), deleteSharedWatchlist: jest.fn() }));
+jest.mock('@/features/friends/friends-repository', () => ({ fetchFriendships: jest.fn() }));
+jest.mock('@/services/tmdb', () => ({ catalogService: { search: jest.fn() } }));
+const list = { id: 'list-1', ownerId: 'alice', title: 'Weekend', createdAt: '2026-10-30' };
+const movie: Media = { id: 42, type: 'movie', title: 'Inception', overview: '', posterUrl: '', backdropUrl: '', year: '2010', rating: 8, genres: [] };
+const mount = () => render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: Infinity } } })}><SharedListsScreen /></QueryClientProvider>);
+beforeEach(() => {
+  jest.useFakeTimers(); jest.clearAllMocks(); useProfileStore.setState({ language: 'tr' });
+  jest.mocked(repository.fetchWatchWheels).mockResolvedValue([list]);
+  jest.mocked(repository.fetchWheelEntries).mockResolvedValue([]);
+  jest.mocked(repository.fetchSharedListMemberIds).mockResolvedValue(['alice']);
+  jest.mocked(repository.inviteSharedListMembers).mockResolvedValue();
+  jest.mocked(repository.addWheelEntry).mockResolvedValue();
+  jest.mocked(fetchFriendships).mockResolvedValue([{ id: 'friend-1', requesterId: 'alice', addresseeId: 'bob', status: 'accepted', direction: 'friend', profile: { id: 'bob', username: 'bob', firstName: 'Bob', lastName: '' } }]);
+  jest.mocked(catalogService.search).mockResolvedValue([movie]);
+});
+afterEach(async () => { await act(async () => { jest.runOnlyPendingTimers(); }); jest.useRealTimers(); });
+it('creates a list without initially selecting any friend', async () => {
+  jest.mocked(repository.fetchWatchWheels).mockResolvedValue([]);
+  jest.mocked(repository.createSharedWatchlist).mockImplementation(async () => { jest.mocked(repository.fetchWatchWheels).mockResolvedValue([list]); return list.id; });
+  const screen = await mount();
+  await fireEvent.changeText(await screen.findByLabelText('Liste adı'), 'Weekend');
+  expect(screen.queryByRole('checkbox', { name: 'Bob' })).toBeNull();
+  await fireEvent.press(screen.getByText('Listeyi oluştur'));
+  await waitFor(() => expect(repository.createSharedWatchlist).toHaveBeenCalledWith('Weekend', []));
+  expect(await screen.findByText('Arkadaş davet et')).toBeTruthy();
+});
+it.each(['tr', 'en'] as const)('finds and adds a title in %s', async (language) => {
+  useProfileStore.setState({ language });
+  const screen = await mount();
+  await fireEvent.changeText(await screen.findByLabelText(language === 'en' ? 'Add a title' : 'Yapım ekle'), 'Inception');
+  await act(async () => { jest.advanceTimersByTime(500); });
+  const result = await screen.findByLabelText(language === 'en' ? 'Add Inception' : 'Ekle Inception');
+  await fireEvent.press(result);
+  await waitFor(() => expect(repository.addWheelEntry).toHaveBeenCalledWith('list-1', 'alice', movie));
+  expect(catalogService.search).toHaveBeenCalledWith('Inception', language);
+});
+it('invites a friend after the list already exists', async () => {
+  const screen = await mount();
+  await fireEvent.press(await screen.findByText('Arkadaş davet et'));
+  await fireEvent.press(await screen.findByRole('checkbox', { name: 'Bob' }));
+  await fireEvent.press(screen.getByText('Davet gönder'));
+  await waitFor(() => expect(repository.inviteSharedListMembers).toHaveBeenCalledWith('list-1', ['bob']));
+});
+it('does not offer invitations to a nonowner', async () => {
+  jest.mocked(repository.fetchWatchWheels).mockResolvedValue([{ ...list, ownerId: 'bob' }]);
+  const screen = await mount();
+  await screen.findByLabelText('Yapım ekle');
+  expect(screen.queryByText('Arkadaş davet et')).toBeNull();
+});

@@ -1,9 +1,10 @@
-import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CommunityPanel } from '../CommunityPanel';
 import { useCommunityStore } from '@/store/community-store';
-import { CommunitySnapshot, fetchCommunitySnapshot, persistComment, softDeleteComment } from '@/features/community/community-repository';
+import { CommunitySnapshot, fetchCommunitySnapshot, persistComment, softDeleteComment, toggleCommentLike } from '@/features/community/community-repository';
+import { useProfileStore } from '@/store/profile-store';
 
 const mockAuth = { user: { id: 'local-test' }, configured: true, flushSync: jest.fn() };
 jest.mock('@/features/auth/AuthProvider', () => ({ useAuth: () => mockAuth }));
@@ -13,6 +14,7 @@ jest.mock('@/features/community/community-repository', () => ({
   persistComment: jest.fn(),
   persistRating: jest.fn(),
   softDeleteComment: jest.fn(),
+  toggleCommentLike: jest.fn(),
 }));
 
 const snapshot: CommunitySnapshot = { comments: [], ratings: [] };
@@ -28,10 +30,47 @@ const renderPanel = async (component: React.ReactElement, seed?: { targetKey: st
 
 describe('CommunityPanel', () => {
   beforeEach(() => {
+    useProfileStore.setState({ language: 'tr' });
+    jest.mocked(toggleCommentLike).mockReset().mockResolvedValue();
     useCommunityStore.getState().clearUserData();
     mockedFetch.mockResolvedValue(snapshot);
     mockedPersist.mockResolvedValue();
     mockedDelete.mockResolvedValue();
+  });
+
+  it('likes a local comment immediately and ignores rapid repeated taps', async () => {
+    let resolve!: () => void;
+    jest.mocked(toggleCommentLike).mockImplementation(() => new Promise<void>((done) => { resolve = done; }));
+    useCommunityStore.getState().addComment('media:movie:4', 'local-test', 'Alice', 'A local comment');
+    const screen = await renderPanel(<CommunityPanel targetKey="media:movie:4" canReview />);
+    await fireEvent.press(screen.getByLabelText('Yorumu beğen'));
+    expect(within(screen.getByLabelText('Yorumu beğen')).getByText('1')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Yorumu beğen'));
+    expect(toggleCommentLike).toHaveBeenCalledTimes(1);
+    await act(async () => { resolve(); });
+    expect(within(screen.getByLabelText('Yorumu beğen')).getByText('1')).toBeTruthy();
+    expect(screen.getByLabelText('Yorumu beğen').props.accessibilityState.selected).toBe(true);
+    jest.mocked(toggleCommentLike).mockResolvedValue();
+    await fireEvent.press(screen.getByLabelText('Yorumu beğen'));
+    await waitFor(() => expect(screen.getByLabelText('Yorumu beğen').props.accessibilityState.selected).toBe(false));
+  });
+
+  it('rolls back a failed like and displays a useful error', async () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    jest.mocked(toggleCommentLike).mockRejectedValue(new Error('offline'));
+    useCommunityStore.getState().addComment('media:movie:4', 'local-test', 'Alice', 'A comment');
+    const screen = await renderPanel(<CommunityPanel targetKey="media:movie:4" canReview />);
+    await fireEvent.press(screen.getByLabelText('Yorumu beğen'));
+    await waitFor(() => expect(alert).toHaveBeenCalledWith('Beğeni kaydedilemedi', expect.any(String)));
+    expect(screen.getByLabelText('Yorumu beğen').props.accessibilityState.selected).toBe(false);
+    alert.mockRestore();
+  });
+
+  it('exposes the spoiler checkbox as a single labeled option', async () => {
+    const screen = await renderPanel(<CommunityPanel targetKey="media:movie:4" canReview />);
+    const option = screen.getByRole('checkbox', { name: 'Spoiler içeriyor' });
+    await fireEvent.press(option);
+    expect(screen.getByRole('checkbox', { name: 'Spoiler içeriyor' }).props.accessibilityState.checked).toBe(true);
   });
 
   it('renders and reacts to comment updates without a snapshot render loop', async () => {

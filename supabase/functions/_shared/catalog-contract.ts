@@ -12,5 +12,8 @@ export function normalizeTmdbPath(path: string): string {
   const allowed = new Set(['language', 'query', 'page', 'sort_by', 'with_genres', 'vote_average.gte', 'vote_count.gte', 'primary_release_year', 'first_air_date_year', 'include_adult']);
   for (const key of params.keys()) if (!allowed.has(key)) throw new Error('TMDB parameter is not allowed');
   params.sort();
-  return `${pathname}${params.size ? `?${params}` : ''}`;
+  // React Native's URL polyfill does not expose URLSearchParams.size on every runtime.
+  // Inspect the serialized value so search, paging and discovery filters survive on devices.
+  const serialized = params.toString();
+  return `${pathname}${serialized ? `?${serialized}` : ''}`;
 }

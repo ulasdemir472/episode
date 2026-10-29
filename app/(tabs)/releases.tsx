@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -8,8 +8,6 @@ import { NotificationButton } from '@/components/NotificationButton';
 import { ContinueWatching } from '@/components/ContinueWatching';
 import { EpisodeRelease, LibraryItem } from '@/domain/media';
 import { catalogService } from '@/services/tmdb';
-import { enableNotifications } from '@/services/notifications';
-import { updateNotificationPreferences } from '@/features/notifications/notification-repository';
 import { useLibraryStore } from '@/store/library-store';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { useProfileStore } from '@/store/profile-store';
@@ -24,7 +22,6 @@ export default function ReleasesScreen() {
   const en = language === 'en';
   const client = useQueryClient();
   const [now, setNow] = useState(() => new Date());
-  const [enabling, setEnabling] = useState(false);
   const items = useLibraryStore((state) => state.items);
   const watched = useLibraryStore((state) => state.watchedEpisodes);
   const today = dateInZone(now, Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Istanbul');
@@ -48,19 +45,7 @@ export default function ReleasesScreen() {
   useEffect(() => {
     for (const release of schedule.data ?? []) if (release.airDate <= today && !watched[release.id]) useLibraryStore.getState().reopenForEpisode(release.show, release.season, release.episode);
   }, [schedule.data, today, watched]);
-  const enable = async () => {
-    if (!user || enabling) return;
-    setEnabling(true);
-    try {
-      const granted = await enableNotifications(user.id);
-      if (!granted) { Alert.alert(t(language, 'preferences'), t(language, 'permissionNeeded')); return; }
-      await updateNotificationPreferences(user.id, { new_episodes: true, push_enabled: true, time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Istanbul' });
-      await client.invalidateQueries({ queryKey: ['notification-preferences', user.id] });
-      Alert.alert(en ? 'Notifications enabled' : 'Bildirimler açık', t(language, 'episodeNotificationNote'));
-    } catch { Alert.alert(t(language, 'error'), t(language, 'registrationError')); }
-    finally { setEnabling(false); }
-  };
-  const header = <><View style={styles.header}><Text style={styles.kicker}>{en ? 'YOUR SCHEDULE' : 'TAKVİMİN'}</Text><Text style={styles.title}>{en ? 'New episodes' : 'Yeni bölümler'}</Text><Text style={styles.subtitle}>{en ? 'Upcoming episodes and everything you missed in the last 30 days.' : 'Yaklaşan bölümler ve son 30 günde kaçırdıkların.'}</Text><Pressable disabled={enabling} accessibilityRole="button" style={styles.notify} onPress={() => void enable()}><Ionicons name="notifications-outline" size={19} color={colors.text} /><Text style={styles.notifyText}>{enabling ? t(language, 'loading') : t(language, 'enablePush')}</Text></Pressable></View><NotificationButton /></>;
+  const header = <View style={styles.header}><Text style={styles.kicker}>{en ? 'YOUR SCHEDULE' : 'TAKVİMİN'}</Text><View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}><Text style={styles.title}>{en ? 'New episodes' : 'Yeni bölümler'}</Text><NotificationButton /></View><Text style={styles.subtitle}>{en ? 'Upcoming episodes and everything you missed in the last 30 days.' : 'Yaklaşan bölümler ve son 30 günde kaçırdıkların.'}</Text></View>;
   return <Screen scroll={false}><FlatList data={rows} keyExtractor={(row) => row.id} ListHeaderComponent={header} contentContainerStyle={{ paddingBottom: 120 }} refreshing={schedule.isRefetching} onRefresh={() => { setNow(new Date()); void schedule.refetch(); }} ListEmptyComponent={schedule.isLoading ? <ActivityIndicator color={colors.primary} /> : <View style={styles.empty}><Ionicons name="calendar-outline" size={36} color={colors.muted} /><Text style={styles.emptyTitle}>{schedule.isError ? (en ? 'Could not load the schedule' : 'Yayın takvimi yüklenemedi') : shows.length ? (en ? 'No new episodes' : 'Yeni bölüm yok') : (en ? 'Follow your first show' : 'İlk dizini takip et')}</Text><Text style={styles.subtitle}>{schedule.isError ? t(language, 'detailError') : shows.length ? (en ? 'Your upcoming episodes will appear here.' : 'Yaklaşan bölümlerin burada görünecek.') : (en ? 'Mark an episode watched to start following a show.' : 'Bir bölümü izlendi işaretleyerek diziyi takip etmeye başla.')}</Text><Pressable onPress={() => schedule.isError ? schedule.refetch() : router.push('/discover')} style={styles.notify}><Text style={styles.notifyText}>{t(language, schedule.isError ? 'retry' : 'findTitle')}</Text></Pressable></View>} renderItem={({ item }) => {
     if (item.kind === 'section') return <Text style={styles.section}>{item.title}</Text>;
     if (item.kind === 'continue') return <ContinueWatching item={item.item} />;

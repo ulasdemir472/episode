@@ -96,7 +96,7 @@ export async function toggleCommentLike(userId: string, commentId: string, liked
   const client = requireSupabase();
   const result = liked
     ? await client.from('comment_likes').delete().eq('comment_id', commentId).eq('user_id', userId)
-    : await client.from('comment_likes').insert({ comment_id: commentId, user_id: userId });
+    : await client.from('comment_likes').upsert({ comment_id: commentId, user_id: userId }, { onConflict: 'comment_id,user_id', ignoreDuplicates: true });
   if (result.error) throw result.error;
 }
 
