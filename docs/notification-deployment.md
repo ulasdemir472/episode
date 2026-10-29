@@ -25,7 +25,7 @@ Repository → **Settings → Secrets and variables → Actions → Repository s
 | Secret | Değer |
 |---|---|
 | `SUPABASE_ACCESS_TOKEN` | Hedef projeye erişen Supabase kişisel erişim token'ı. `anon` veya `service_role` anahtarı değildir. CLI link, fonksiyon dağıtımı, Edge Function secret okuma/yazma ve Management API veritabanı sorgularına yetkili olmalı. |
-| `SUPABASE_PROJECT_ID` | Dashboard proje ayarlarındaki 20 karakterlik **project reference**; URL değil. |
+| `SUPABASE_PROJECT_ID` | Dashboard proje ayarlarındaki 20 karakterlik **project reference**. Tam `https://PROJECT_REF.supabase.co` URL'si de kabul edilir; baştaki/sondaki boşluklar temizlenir. |
 | `SUPABASE_DB_PASSWORD` | Hedef projenin PostgreSQL parolası. |
 | `EXPO_TOKEN` | Mevcut EAS dağıtım token'ı; tanımlıysa tekrar eklenmez. |
 

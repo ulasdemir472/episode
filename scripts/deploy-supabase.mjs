@@ -4,15 +4,23 @@ import { pathToFileURL } from 'node:url';
 const requiredSecrets = ['SUPABASE_ACCESS_TOKEN', 'SUPABASE_PROJECT_ID', 'SUPABASE_DB_PASSWORD', 'EXPO_TOKEN'];
 const serverSecrets = ['TMDB_ACCESS_TOKEN', 'OMDB_API_KEY', 'EXPO_ACCESS_TOKEN'];
 
+export function projectReference(value) {
+  const input = value.trim();
+  const match = /^(?:https:\/\/)?([a-z0-9]{20})(?:\.supabase\.co\/?)?$/.exec(input);
+  // Accept the canonical reference or a complete HTTPS project URL, never another host/path.
+  if (match && (input === match[1] || input === `https://${match[1]}.supabase.co` || input === `https://${match[1]}.supabase.co/`)) {
+    return match[1];
+  }
+  throw new Error('SUPABASE_PROJECT_ID must contain the 20-character project reference or its https://PROJECT_REF.supabase.co URL.');
+}
+
 export function checkConfiguration(environment) {
   if (environment.GITHUB_REF !== 'refs/heads/main') {
     throw new Error('Deployment is only allowed from main.');
   }
   const missing = requiredSecrets.filter((name) => !environment[name]?.trim());
   if (missing.length) throw new Error(`Missing GitHub Actions secrets: ${missing.join(', ')}`);
-  if (!/^[a-z0-9]{20}$/.test(environment.SUPABASE_PROJECT_ID)) {
-    throw new Error('SUPABASE_PROJECT_ID must be the 20-character project reference, not its URL.');
-  }
+  return { ...environment, SUPABASE_PROJECT_ID: projectReference(environment.SUPABASE_PROJECT_ID) };
 }
 
 // Never include API response bodies or transport errors in logs: they may contain credentials.
@@ -100,24 +108,25 @@ function runSupabase(args, environment) {
 }
 
 export async function deploySupabase(environment, {
-  request = managementClient(environment),
+  request,
   run = runSupabase,
   log = console.log,
   sleep,
   now,
 } = {}) {
-  checkConfiguration(environment);
+  const configuration = checkConfiguration(environment);
+  const requestApi = request ?? managementClient(configuration);
   log('Checking server secrets.');
-  await synchronizeSecrets(environment, request);
+  await synchronizeSecrets(configuration, requestApi);
   log('Linking the Supabase project.');
-  run(['link', '--project-ref', environment.SUPABASE_PROJECT_ID], environment);
+  run(['link', '--project-ref', configuration.SUPABASE_PROJECT_ID], configuration);
   log('Applying pending database migrations.');
   // Never reset the database or repair migration history automatically.
-  run(['db', 'push', '--linked', '--yes'], environment);
+  run(['db', 'push', '--linked', '--yes'], configuration);
   log('Deploying Edge Functions with per-function JWT settings.');
-  run(['functions', 'deploy', '--project-ref', environment.SUPABASE_PROJECT_ID, '--use-api'], environment);
+  run(['functions', 'deploy', '--project-ref', configuration.SUPABASE_PROJECT_ID, '--use-api'], configuration);
   log('Configuring and checking the notification worker.');
-  await configureAndVerifyWorker(environment, request, { sleep, now });
+  await configureAndVerifyWorker(configuration, requestApi, { sleep, now });
   log('Supabase deployment and notification worker check passed.');
 }
 

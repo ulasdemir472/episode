@@ -7,6 +7,7 @@ import {
   configureAndVerifyWorker,
   deploySupabase,
   managementClient,
+  projectReference,
   synchronizeSecrets,
 } from '../deploy-supabase.mjs';
 
@@ -67,6 +68,32 @@ test('project references cannot inject URLs, SQL or shell arguments', () => {
     assert.throws(() => checkConfiguration({ ...environment, SUPABASE_PROJECT_ID: value }), /20-character project reference/);
   }
   assert.doesNotThrow(() => checkConfiguration(environment));
+});
+
+test('project configuration accepts surrounding whitespace and canonical HTTPS project URLs', async () => {
+  const ref = environment.SUPABASE_PROJECT_ID;
+  for (const value of [` ${ref}\r\n`, `https://${ref}.supabase.co`, ` https://${ref}.supabase.co/\n`]) {
+    assert.equal(projectReference(value), ref);
+    const dependencies = harness();
+    dependencies.run = (args, configuration) => {
+      assert.equal(configuration.SUPABASE_PROJECT_ID, ref);
+      dependencies.events.push(['cli', args]);
+    };
+    await deploySupabase({ ...environment, SUPABASE_PROJECT_ID: value }, dependencies);
+    const sql = dependencies.events.find((event) => event[3]?.query.includes('configure_episode_worker'))[3].query;
+    assert.match(sql, new RegExp(`https://${ref}\\.supabase\\.co`));
+    assert.doesNotMatch(sql, /https:\/\/https:/);
+  }
+});
+
+test('project URL normalization rejects credentials, alternate hosts, protocols and injected paths', () => {
+  const ref = environment.SUPABASE_PROJECT_ID;
+  for (const value of [
+    `${ref}.supabase.co`, `http://${ref}.supabase.co`, `https://${ref}.supabase.co.evil.test`,
+    `https://user@${ref}.supabase.co`, `https://${ref}.supabase.co:443`,
+    `https://${ref}.supabase.co/rest/v1`, `https://${ref}.supabase.co?query=1`,
+    `https://${ref}.supabase.co/#anchor`, `${ref}\nother`,
+  ]) assert.throws(() => projectReference(value), /20-character project reference/);
 });
 
 test('deployment applies migrations before functions and verifies worker after deployment', async () => {
