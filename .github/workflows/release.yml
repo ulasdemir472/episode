@@ -8,19 +8,28 @@ on:
         default: ios
       auto_submit:
         type: boolean
-        description: 'Otomatik TestFlight / Store gonderimi (--auto-submit)'
+        description: 'iOS: TestFlight; Android: internal test yuklemesi (--auto-submit)'
         default: true
+      deploy_backend:
+        type: boolean
+        description: 'Canli backend dagitimi (TestFlight testi icin kapali birak)'
+        default: false
 permissions:
   contents: read
 concurrency:
   group: episode-deployment-${{ github.repository }}
   cancel-in-progress: false
 jobs:
+  checks:
+    if: ${{ !inputs.deploy_backend }}
+    uses: ./.github/workflows/ci.yml
   backend:
+    if: ${{ inputs.deploy_backend }}
     uses: ./.github/workflows/supabase-deploy.yml
     secrets: inherit
   build:
-    needs: backend
+    needs: [checks, backend]
+    if: ${{ !cancelled() && ((inputs.deploy_backend && needs.backend.result == 'success') || (!inputs.deploy_backend && needs.checks.result == 'success')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

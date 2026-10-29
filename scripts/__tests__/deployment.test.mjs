@@ -252,7 +252,7 @@ function workflow(name) {
   return parse(readFileSync(new URL(`../../.github/workflows/${name}.yml`, import.meta.url), 'utf8'), { uniqueKeys: true });
 }
 
-test('automatic OTA and native releases both wait for the backend and serialize deployment', () => {
+test('automatic OTA and native releases serialize deployment and gate builds on the selected checks', () => {
   const ota = workflow('ota-update');
   const release = workflow('release');
   assert.deepEqual(ota.on.push.branches, ['main']);
@@ -261,10 +261,28 @@ test('automatic OTA and native releases both wait for the backend and serialize 
   for (const [pipeline, job] of [[ota, 'update'], [release, 'build']]) {
     assert.equal(pipeline.jobs.backend.uses, './.github/workflows/supabase-deploy.yml');
     assert.equal(pipeline.jobs.backend.secrets, 'inherit');
-    assert.equal(pipeline.jobs[job].needs, 'backend');
-    assert.equal(pipeline.jobs[job].if, undefined); // Success-only: no always() bypass.
     const checkout = pipeline.jobs[job].steps.find((step) => step.uses?.startsWith('actions/checkout'));
     assert.equal(checkout.with.ref, '${{ github.sha }}');
+  }
+  assert.equal(ota.jobs.update.needs, 'backend');
+  assert.equal(ota.jobs.update.if, undefined);
+  assert.deepEqual(release.jobs.build.needs, ['checks', 'backend']);
+  assert.equal(release.on.workflow_dispatch.inputs.deploy_backend.default, false);
+  assert.equal(release.jobs.checks.uses, './.github/workflows/ci.yml');
+  const condition = (expression, inputs, needs, cancelled = () => false) =>
+    new Function('inputs', 'needs', 'cancelled', `return (${expression.slice(3, -2)});`)(inputs, needs, cancelled);
+  for (const deploy_backend of [false, true]) {
+    const inputs = { deploy_backend };
+    assert.equal(condition(release.jobs.backend.if, inputs), deploy_backend);
+    assert.equal(condition(release.jobs.checks.if, inputs), !deploy_backend);
+    for (const result of ['success', 'failure', 'cancelled', 'skipped']) {
+      const needs = {
+        backend: { result: deploy_backend ? result : 'skipped' },
+        checks: { result: deploy_backend ? 'skipped' : result },
+      };
+      assert.equal(condition(release.jobs.build.if, inputs, needs), result === 'success');
+      assert.equal(condition(release.jobs.build.if, inputs, needs, () => true), false);
+    }
   }
   assert.equal(ota.on.workflow_dispatch.inputs.channel.default, 'preview');
   assert.ok(ota.jobs.update.steps.find((step) => step.env?.CHANNEL).env.CHANNEL.includes("'preview'"));

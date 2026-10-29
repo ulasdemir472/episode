@@ -6,12 +6,14 @@ Her kutuyu yalnızca yanındaki beklenen sonucu gördüğünde işaretle. Önce 
 
 ## Doğru sürümü kur
 
-- [ ] GitHub Actions'ta ilgili commit'in **Mobile OTA update** çalışmasındaki testler ve backend dağıtımı başarılı. Migration, fonksiyon ve worker kontrolü hatası yok.
-- [ ] TestFlight'a yeni build göndermek için **Mobile release → Run workflow → main**, `platform: ios`, `auto_submit: true` seçildi. EAS build ve gönderim tamamlandı; App Store Connect işlemesi bittikten sonra yeni build TestFlight'tan kuruldu. Mevcut Apple/EAS kimlik bilgilerinin hazır olması gerekir.
-- [ ] TestFlight'ta kurduğun build numarası ve test ettiğin commit not edildi. Profilde görünen `v1.0.0` tek başına doğru build'i ayırt etmez.
+- [ ] GitHub Actions'ta ilgili commit'in **Mobile release** çalışmasındaki kontroller başarılı. TestFlight için `deploy_backend: false` seçildiğinde yalnızca testler ve build/yükleme çalışır; canlı backend dağıtılmaz.
+- [ ] App Store'da önceki sürüm onaylandıysa `app.json` içindeki `expo.version` daha yüksek bir değere çıkarıldı (örneğin `1.0.0` → `1.0.1`) ve `package.json` sürümü eşitlendi. EAS `autoIncrement` yalnızca build numarasını artırır; onaylanmış sürüm numarasını tekrar kullanmak `90186` / `90062` hatası verir. Sürüm değişikliği yeni native build gerektirir.
+- [ ] TestFlight'a yeni build göndermek için **Mobile release → Run workflow** üzerinden test edilecek dal, `platform: ios`, `auto_submit: true`, `deploy_backend: false` seçildi. EAS build ve gönderim tamamlandı; App Store Connect işlemesi bittikten sonra yeni build TestFlight'tan kuruldu. Mevcut Apple/EAS kimlik bilgilerinin hazır olması gerekir. `production` EAS profili mağaza imzalı build üretir; yükleme TestFlight'a gider, App Store yayını ayrı bir App Review gönderimi gerektirir.
+- [ ] TestFlight'ta kurduğun build numarası ve test ettiğin commit not edildi. Profilde görünen uygulama sürümü tek başına doğru build'i ayırt etmez.
+- [ ] App Store'a güncelleme yayımlanacaksa App Store Connect'te **Episode → iOS App → +** üzerinden build ile aynı sürüm numarasında yeni sürüm kaydı oluşturuldu; işlenen build bu sürüme seçildi. Yalnızca TestFlight testi için mağaza sürüm kaydı gerekmez.
 - [ ] Önce mevcut kurulum güncellendi; var olan liste, favori ve bölüm ilerlemesi korundu. Temiz kurulum testi bundan sonra ayrı yapılmalı.
 
-Bu repoda `production` profili `production` güncelleme kanalını kullanır. `main` push'u ise otomatik olarak `preview` kanalını günceller. Dolayısıyla yalnızca push yapıp eski TestFlight uygulamasını açmak bu değişiklikleri test etmek için yeterli değildir. Yeni iOS build'i yukarıdaki **Mobile release** akışıyla alınabilir. Production OTA seçimi, aynı kanalı kullanan diğer uygun build'lere de gider; mevcut production OTA davranışı [Expo kanal rehberinde](https://docs.expo.dev/eas-update/getting-started/) açıklanmıştır.
+Bu repoda `production` profili `production` güncelleme kanalını kullanır. `main` push'u ise backend dağıtımını ve `preview` OTA güncellemesini otomatik çalıştırır. Canlı dağıtım yapmadan TestFlight testi için ayrı bir dalı push edip **Mobile release** akışını o dalda `deploy_backend: false` ile başlat. Yeni backend değişiklikleri gerektiren bir build için backend'in önceden hazır olması gerekir; isteğe bağlı `deploy_backend: true` dağıtımı yalnızca `main` üzerinden yapılır. Production OTA seçimi, aynı kanalı kullanan diğer uygun build'lere de gider; mevcut production OTA davranışı [Expo kanal rehberinde](https://docs.expo.dev/eas-update/getting-started/) açıklanmıştır.
 
 ## Test hazırlığı
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Alert, Image, ImageBackground, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import Constants from 'expo-constants';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -120,7 +121,7 @@ export default function ProfileScreen() {
 
 
     <View style={styles.legalPanel}>
-      <Text style={styles.legalTitle}>Episode v1.0.0</Text>
+      <Text style={styles.legalTitle}>Episode{Constants.expoConfig?.version ? ` v${Constants.expoConfig.version}` : ''}</Text>
       <Text style={styles.legalSubtitle}>
         {isEnglish
           ? 'Episode is a personal movie and TV show tracking and discovery tool. It does not provide video streaming or playback.'

@@ -87,7 +87,7 @@ iPhone'daki sürüm kabulü için [TestFlight kontrol listesini](docs/testflight
 2. Bundle ID/package adlarını kendi şirket alan adına göre güncelle.
 3. [Dağıtım rehberindeki](docs/notification-deployment.md) GitHub repository secret'larını ekle.
 4. `eas build --platform all --profile preview` ile cihaz build'i test et.
-5. Store kayıtları tamamlanınca GitHub Actions'ta **Mobile release → Run workflow → main** seç. Backend ve testler tamamlandıktan sonra production build/gönderim başlar.
+5. TestFlight için GitHub Actions'ta **Mobile release → Run workflow** üzerinden test dalını, `platform: ios`, `auto_submit: true`, `deploy_backend: false` seç. Bu işlem kontrollerden sonra yeni build'i TestFlight'a yükler. Canlı backend'i de dağıtmak gerektiğinde `main` dalında `deploy_backend: true` seç; App Store yayını App Store Connect'te ayrıca App Review'a gönderilir.
 
 CI pull request'lerde, `develop` push'larında ve dağıtım zincirinde tip, lint, istemci/dağıtım testleri, Android/iOS bundle, Deno kontrolleri ve izole PostgreSQL migration/RLS testlerini çalıştırır. Kod içeren `main` push'ları testlerden sonra Supabase'i dağıtır, worker'ı doğrular ve preview OTA kanalını günceller. Production OTA ve mağaza build'i elle seçilir; backend adımları onlar için de otomatiktir.
 
