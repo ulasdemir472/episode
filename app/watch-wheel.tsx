@@ -119,7 +119,7 @@ export default function WatchWheelScreen() {
   if (!userId) return <Screen><Header en={en} /><View style={styles.centerState}><Text style={styles.stateTitle}>{en ? 'Sign in to join the wheel' : 'Çarka katılmak için giriş yap'}</Text></View></Screen>;
   if (wheels.isLoading) return <Screen><Header en={en} /><View style={styles.centerState}><Text style={styles.stateTitle}>{en ? 'Setting up the room…' : 'Oyun masası hazırlanıyor…'}</Text></View></Screen>;
 
-  const showCreator = creating || !wheels.data?.length;
+  const showCreator = creating || !activeWheel;
   return <Screen>
     <Header en={en} />
     <View style={styles.intro}><Text style={styles.kicker}>{en ? 'MOVIE NIGHT WITH FRIENDS' : 'ARKADAŞLARLA FİLM GECESİ'}</Text><Text style={styles.headline}>{en ? 'Add. Spin. Watch.' : 'Ekle. Döndür. İzle.'}</Text><Text style={styles.subhead}>{en ? 'Everyone picks a title, let luck decide.' : 'Herkes bir film bıraksın, kararı şans versin.'}</Text></View>

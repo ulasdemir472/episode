@@ -56,6 +56,13 @@ it('still opens an explicitly linked shared room', async () => {
   expect(await screen.findAllByText('Old movie')).not.toHaveLength(0);
   expect(repository.fetchWheelEntries).toHaveBeenCalledWith(oldRoom.id);
 });
+it('starts safely when a linked room no longer exists', async () => {
+  mockParams = { id: 'deleted-room' };
+  const screen = await mount();
+  expect(await screen.findByText('Create a movie night room')).toBeTruthy();
+  expect(repository.fetchWheelEntries).not.toHaveBeenCalled();
+  expect(screen.queryByText('SPIN THE WHEEL')).toBeNull();
+});
 it('only restores a previous room when explicitly selected', async () => {
   const screen = await mount();
   await fireEvent.press(await screen.findByRole('button', { name: 'Room 1' }));
