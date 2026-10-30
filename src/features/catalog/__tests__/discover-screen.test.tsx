@@ -55,3 +55,19 @@ it('shows a retryable error rather than an empty result when search fails', asyn
   expect(await screen.findByText(/İçerikler yüklenemedi/)).toBeTruthy();
   expect(screen.queryByText('Sonuç bulunamadı.')).toBeNull();
 });
+it.each(['tr', 'en'] as const)('selects and clears a release year without a keyboard in %s', async (language) => {
+  useProfileStore.setState({ language });
+  const en = language === 'en';
+  const screen = await mount();
+  await fireEvent.press(screen.getByLabelText(en ? 'Content: All' : 'İçerik: Tümü'));
+  await fireEvent.press(screen.getByRole('radio', { name: en ? 'Movies' : 'Filmler' }));
+  await screen.findByText('Popular movie');
+  const year = screen.getByRole('button', { name: new RegExp(en ? '^Year:' : '^Yıl:') });
+  expect(screen.queryByRole('textbox', { name: en ? 'Year' : 'Yıl' })).toBeNull();
+  await fireEvent.press(year);
+  await fireEvent.press(screen.getByRole('radio', { name: '2020' }));
+  await waitFor(() => expect(catalogService.discoverPage).toHaveBeenLastCalledWith('movie', expect.objectContaining({ year: '2020' }), language));
+  await fireEvent.press(screen.getByRole('button', { name: new RegExp(en ? '^Year: 2020' : '^Yıl: 2020') }));
+  await fireEvent.press(screen.getByRole('radio', { name: en ? 'Any year' : 'Tüm yıllar' }));
+  await waitFor(() => expect(catalogService.discoverPage).toHaveBeenLastCalledWith('movie', expect.objectContaining({ year: '' }), language));
+});

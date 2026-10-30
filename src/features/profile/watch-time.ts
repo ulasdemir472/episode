@@ -47,7 +47,7 @@ export function calculateViewingInsights(library: LibraryItem[], episodeRuntimes
   const totalMinutes = tvMinutes + movieMinutes;
   const dominantType = totalMinutes === 0 ? undefined : tvMinutes === movieMinutes ? 'balanced' : tvMinutes > movieMinutes ? 'tv' : 'movie';
   const dominantPercent = totalMinutes === 0 ? 0 : Math.round((Math.max(tvMinutes, movieMinutes) / totalMinutes) * 100);
-  return { favoriteGenre, topTitle: topShow?.media.title, topTitleEpisodes: topShow?.progress?.watched ?? 0, tvMinutes, movieMinutes, dominantType, dominantPercent };
+  return { favoriteGenre, topTitle: topShow?.media.title, topMedia: topShow?.media, topTitleEpisodes: topShow?.progress?.watched ?? 0, tvMinutes, movieMinutes, dominantType, dominantPercent };
 }
 
 export function useWatchMinutes(library: LibraryItem[], episodeRuntimes: Record<string, number> = {}): { minutes: number; isLoading: boolean; estimated: boolean } {

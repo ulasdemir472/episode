@@ -8,3 +8,12 @@ Deno.test('catalog preserves search, paging and distinct discovery filters at th
   const comedy = normalizeTmdbPath('/discover/movie?with_genres=35&vote_average.gte=6.5');
   assert(action !== comedy && action.includes('vote_average.gte=6.5'), 'Filters share a cache key');
 });
+Deno.test('catalog allows person details and filmography without exposing arbitrary endpoints', () => {
+  assert(normalizeTmdbPath('/person/31?language=en-US') === '/person/31?language=en-US', 'Person details rejected');
+  assert(normalizeTmdbPath('/person/31/combined_credits?language=tr-TR') === '/person/31/combined_credits?language=tr-TR', 'Filmography rejected');
+  for (const path of ['/person/31/changes', '/person/31?api_key=secret', '/person/31/../account']) {
+    let rejected = false;
+    try { normalizeTmdbPath(path); } catch { rejected = true; }
+    assert(rejected, `Unsafe path was accepted: ${path}`);
+  }
+});

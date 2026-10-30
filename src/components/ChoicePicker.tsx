@@ -11,7 +11,7 @@ export function ChoicePicker<T extends string | number>({ label, value, options,
   const selected = options.find((option) => option.value === value);
   return <>
     <Pressable accessibilityRole="button" accessibilityLabel={`${label}: ${selected?.label ?? ''}`} accessibilityState={{ expanded: open }} onPress={() => { Keyboard.dismiss(); setOpen(true); }} style={styles.field}>
-      <View style={styles.copy}><Text style={styles.label}>{label}</Text><Text style={styles.value} numberOfLines={1}>{selected?.label}</Text></View><Ionicons name="chevron-down" color={colors.muted} size={17} />
+      <View style={styles.copy}><Text style={styles.label}>{label}</Text><Text style={styles.value} numberOfLines={1}>{selected?.label}</Text></View><Ionicons name="chevron-down" color={colors.muted} size={14} />
     </Pressable>
     <Modal transparent visible={open} animationType="fade" onRequestClose={() => setOpen(false)}>
       <View style={styles.overlay}><Pressable accessibilityLabel={closeLabel} onPress={() => setOpen(false)} style={StyleSheet.absoluteFill} />
@@ -24,7 +24,7 @@ export function ChoicePicker<T extends string | number>({ label, value, options,
   </>;
 }
 const styles = StyleSheet.create({
-  field: { flex: 1, minHeight: 66, minWidth: 100, flexDirection: 'row', alignItems: 'center', gap: 7, padding: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md },
-  copy: { flex: 1 }, label: { color: colors.muted, fontSize: 11, marginBottom: 5 }, value: { color: colors.text, fontWeight: '700', fontSize: 13 },
+  field: { flex: 1, minHeight: 48, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: radius.sm },
+  copy: { flex: 1 }, label: { color: colors.muted, fontSize: 10, marginBottom: 2 }, value: { color: colors.text, fontWeight: '600', fontSize: 13 },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,.65)', justifyContent: 'flex-end' }, sheet: { backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.lg, paddingBottom: 36 }, heading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.md }, title: { color: colors.text, fontWeight: '800', fontSize: 21 }, close: { padding: 8 }, option: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, borderRadius: radius.sm }, selected: { backgroundColor: colors.elevated }, optionText: { color: colors.text, fontSize: 15 },
 });

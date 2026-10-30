@@ -1,12 +1,20 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 import { LibraryItem } from '@/domain/media';
 import { calculateViewingInsights } from '@/features/profile/watch-time';
 import { colors, radius, spacing } from '@/theme/tokens';
-import { translateGenre } from '@/services/tmdb';
+import { catalogService, translateGenre } from '@/services/tmdb';
 
 export function ProfileInsights({ library, episodeRuntimes = {}, language = 'tr' }: { library: LibraryItem[]; episodeRuntimes?: Record<string, number>; language?: 'tr' | 'en' }) {
   const insights = calculateViewingInsights(library, episodeRuntimes);
+  const topMedia = insights.topMedia;
+  const topTitle = useQuery({
+    queryKey: ['media-details', topMedia?.type, topMedia?.id, language],
+    queryFn: () => catalogService.mediaDetails(topMedia!.type, topMedia!.id, language),
+    enabled: Boolean(topMedia),
+    staleTime: 24 * 60 * 60_000,
+  });
   const en = language === 'en';
   const percent = en ? `${insights.dominantPercent}%` : `%${insights.dominantPercent}`;
   const balance = insights.dominantType === 'balanced' ? (en ? 'Balanced' : 'Dengeli') : insights.dominantType === 'tv' ? `${percent} ${en ? 'series' : 'dizi'}` : insights.dominantType === 'movie' ? `${percent} ${en ? 'movies' : 'film'}` : '—';
@@ -14,7 +22,7 @@ export function ProfileInsights({ library, episodeRuntimes = {}, language = 'tr'
     <View style={styles.heading}><Ionicons name="analytics-outline" size={17} color={colors.secondary} /><Text style={styles.title}>{en ? 'Viewing insights' : 'İzleme özeti'}</Text></View>
     <View style={styles.cards}>
       <Insight icon="color-palette-outline" label={en ? 'Favorite genre' : 'Favori tür'} value={insights.favoriteGenre ? translateGenre(insights.favoriteGenre, en) : '—'} />
-      <Insight icon="tv-outline" label={en ? 'Most watched show' : 'En çok izlenen dizi'} value={insights.topTitle ?? '—'} detail={insights.topTitle ? `${insights.topTitleEpisodes} ${en ? 'episodes' : 'bölüm'}` : undefined} />
+      <Insight icon="tv-outline" label={en ? 'Most watched show' : 'En çok izlenen dizi'} value={topTitle.data?.title ?? (topMedia && topTitle.isPending ? '…' : insights.topTitle ?? '—')} detail={insights.topTitle ? `${insights.topTitleEpisodes} ${en ? 'episodes' : 'bölüm'}` : undefined} />
       <Insight icon="pie-chart-outline" label={en ? 'Viewing balance' : 'İzleme dağılımı'} value={balance} />
     </View>
   </View>;

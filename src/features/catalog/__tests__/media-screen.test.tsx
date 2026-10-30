@@ -1,5 +1,6 @@
 import { act, fireEvent, render } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { router } from 'expo-router';
 import MediaDetailScreen from '../../../../app/media/[id]';
 import { catalogService } from '@/services/tmdb';
 import { useLibraryStore } from '@/store/library-store';
@@ -21,7 +22,7 @@ beforeEach(() => {
   jest.mocked(catalogService.mediaDetails).mockResolvedValue(movie);
   jest.mocked(catalogService.imdbTitleRating).mockResolvedValue(undefined);
   jest.mocked(catalogService.recommendations).mockResolvedValue([]);
-  jest.mocked(catalogService.titleExtras).mockResolvedValue({ providers: undefined, cast: [], director: undefined, trailerUrl: undefined });
+  jest.mocked(catalogService.titleExtras).mockResolvedValue({ providers: undefined, cast: [], directors: [], director: undefined, trailerUrl: undefined });
 });
 afterEach(async () => { await act(async () => { jest.runOnlyPendingTimers(); }); jest.useRealTimers(); });
 it.each(['tr', 'en'] as const)('loads a standalone media link and displays controls in %s', async (language) => {
@@ -49,4 +50,14 @@ it('shows an actionable error for failed detail fetches', async () => {
   const screen = await mount();
   expect(await screen.findByText('Could not load this title. Check your connection and try again.')).toBeTruthy();
   expect(screen.getByText('Try again')).toBeTruthy();
+});
+it.each(['tr', 'en'] as const)('connects actor and director cards to their filmographies in %s', async language => {
+  useProfileStore.setState({ language });
+  jest.mocked(catalogService.titleExtras).mockResolvedValue({ providers: undefined, trailerUrl: undefined, director: 'Director', directors: [{ id: 31, name: 'Director', profileUrl: '' }], cast: [{ id: 32, name: 'Actor', profileUrl: '', character: 'Character' }] });
+  const screen = await mount();
+  const label = (name: string) => language === 'en' ? `View ${name} filmography` : `${name} filmografisini aç`;
+  await fireEvent.press(await screen.findByRole('button', { name: label('Director') }));
+  expect(router.push).toHaveBeenLastCalledWith({ pathname: '/person/[id]', params: { id: '31' } });
+  await fireEvent.press(screen.getByRole('button', { name: label('Actor') }));
+  expect(router.push).toHaveBeenLastCalledWith({ pathname: '/person/[id]', params: { id: '32' } });
 });

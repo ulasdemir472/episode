@@ -17,6 +17,7 @@ import { useProfileStore } from '@/store/profile-store';
 import { colors, radius, spacing } from '@/theme/tokens';
 import { MotionPressable } from '@/components/MotionPressable';
 import { MediaCard } from '@/components/MediaCard';
+import { PeopleCredits } from '@/components/PeopleCredits';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { ScrollFocusTarget } from '@/features/onboarding/ScrollFocusTarget';
 
@@ -224,8 +225,8 @@ export default function MediaDetailScreen() {
           {extras.data?.providers?.link && <Pressable onPress={() => { void Linking.openURL(extras.data!.providers!.link!).catch(() => Alert.alert(t(language, 'error'))); }} style={styles.watchedAction}><Text style={styles.watchedText}>{t(language, 'whereToWatch')} ↗</Text></Pressable>}
           <Text style={styles.attribution}>{t(language, 'providerAttribution')}</Text>
           {extras.data?.trailerUrl && <Pressable onPress={() => { void Linking.openURL(extras.data!.trailerUrl!).catch(() => Alert.alert(t(language, 'error'))); }} style={styles.watchedAction}><Ionicons name="play-circle-outline" size={22} color={colors.text} /><Text style={styles.watchedText}>{t(language, 'trailer')}</Text></Pressable>}
-          {extras.data?.director && <Text style={styles.overview}>{t(language, 'director')}: {extras.data.director}</Text>}
-          {!!extras.data?.cast.length && <><Text style={[styles.section, { marginTop: spacing.lg }]}>{t(language, 'cast')}</Text><Text style={styles.overview}>{extras.data.cast.map((person) => person.name).join(' · ')}</Text></>}
+          <PeopleCredits title={t(language, 'director')} people={extras.data?.directors ?? []} language={language} />
+          <PeopleCredits title={t(language, 'cast')} people={extras.data?.cast ?? []} language={language} />
         </>}
       </View>
 

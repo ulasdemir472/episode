@@ -2,10 +2,10 @@ import { normalizeTmdbPath } from '../../../supabase/functions/_shared/catalog-c
 import { URLSearchParams as NativeSearchParams } from 'react-native-url-polyfill';
 import { scheduleSeasonNumbers, ticketOutcome, deliveryRetry, dateInZone } from '../../../supabase/functions/_shared/episode-schedule';
 
-it.each(['/movie/12?language=tr-TR', '/tv/12/recommendations?language=en-US&page=1', '/movie/12/recommendations', '/movie/12/watch/providers', '/tv/12/videos', '/movie/12/credits', '/tv/12/season/2', '/movie/12/external_ids'])('allows supported client endpoints: %s', (path) => {
+it.each(['/movie/12?language=tr-TR', '/tv/12/recommendations?language=en-US&page=1', '/movie/12/recommendations', '/movie/12/watch/providers', '/tv/12/videos', '/movie/12/credits', '/tv/12/season/2', '/movie/12/external_ids', '/person/31?language=en-US', '/person/31/combined_credits?language=tr-TR'])('allows supported client endpoints: %s', (path) => {
   expect(() => normalizeTmdbPath(path)).not.toThrow();
 });
-it.each(['/account', '/movie/12/../account', 'https://example.com', '/movie/12?api_key=secret'])('rejects unsupported paths and parameters: %s', (path) => {
+it.each(['/account', '/movie/12/../account', 'https://example.com', '/movie/12?api_key=secret', '/person/31/changes', '/person/31?api_key=secret', '/person/31/../account'])('rejects unsupported paths and parameters: %s', (path) => {
   expect(() => normalizeTmdbPath(path)).toThrow();
 });
 it('canonicalizes query ordering for shared cache hits', () => {

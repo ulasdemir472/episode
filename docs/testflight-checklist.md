@@ -15,6 +15,17 @@ Her kutuyu yalnızca yanındaki beklenen sonucu gördüğünde işaretle. Önce 
 
 Bu repoda `production` profili `production` güncelleme kanalını kullanır. `main` push'u ise backend dağıtımını ve `preview` OTA güncellemesini otomatik çalıştırır. Canlı dağıtım yapmadan TestFlight testi için ayrı bir dalı push edip **Mobile release** akışını o dalda `deploy_backend: false` ile başlat. Yeni backend değişiklikleri gerektiren bir build için backend'in önceden hazır olması gerekir; isteğe bağlı `deploy_backend: true` dağıtımı yalnızca `main` üzerinden yapılır. Production OTA seçimi, aynı kanalı kullanan diğer uygun build'lere de gider; mevcut production OTA davranışı [Expo kanal rehberinde](https://docs.expo.dev/eas-update/getting-started/) açıklanmıştır.
 
+## Son arayüz ve kişi sayfası değişiklikleri
+
+- [ ] **Keşfet:** seçim alanları daha ince; film/dizi seçince yılı klavye açmadan listeden seçebiliyorsun. Yıl, tür ve minimum puan birlikte çalışıyor; **Tüm yıllar / Any year** yıl filtresini kaldırıyor.
+- [ ] **Kütüphane:** durum, film/dizi ve sıralama seçenekleri açılır menülerden seçiliyor. Favoriler, arama ve toplu seçim çalışmaya devam ediyor.
+- [ ] **Ayarlar → Bildirimler:** metinlerin sol kenarları aynı hizada; anahtarlar ve telefon ayarları simgesi ortak sağ sütunda. Büyük sistem yazısında metinler anahtarların üstüne binmiyor.
+- [ ] **Profil:** daha önce Türkçe kaydedilmiş Friends, İngilizce kullanımda katalogdan yenilenip **Friends** görünüyor. Dil değiştirince başlıklar ve bölüm etiketi güncelleniyor.
+- [ ] **Çark:** normal girişte yeni, boş oturum başlıyor. Eski odalar otomatik açılmıyor; yalnızca **Önceki odalar / Previous rooms** üzerinden seçince açılıyor. Yeni oda oluşturup çıkıp dönünce başlangıç ekranı geliyor. Açık oda bağlantısı ise ilgili ortak odayı açıyor.
+- [ ] **Yapım detayı:** TMDB'de fotoğrafı bulunan oyuncu ve yönetmenlerin fotoğrafları görünüyor. Fotoğraf yoksa veya indirilemezse yer tutucu var; isimden yine kişi sayfasına gidilebiliyor.
+- [ ] **Kişi sayfası:** oyuncu veya yönetmene dokununca filmografisi açılıyor. Filmler ve diziler ayrı filtrelenebiliyor; aynı yapım mükerrer görünmüyor. Yapıma dokununca doğru film/dizi detayı açılıyor; geri dönüş çalışıyor.
+- [ ] Yukarıdaki akışlar **Türkçe ve İngilizce** denendi. Telefonun büyük yazı boyutu ile dar ekranda seçim alanları ve bildirim ayarları ayrıca kontrol edildi.
+
 ## Test hazırlığı
 
 - İki test hesabı kullan: **A** ve **B**. İkinci cihaz varsa senkronizasyon ve uygulama kapalıyken push kontrolleri daha kolaydır.

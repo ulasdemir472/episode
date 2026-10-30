@@ -2,6 +2,7 @@ const endpoints = [
   /^\/trending\/all\/week$/, /^\/search\/multi$/, /^\/discover\/(movie|tv)$/,
   /^\/(movie|tv)\/\d+$/, /^\/tv\/\d+\/season\/\d+$/,
   /^\/(movie|tv)\/\d+\/(external_ids|recommendations|credits|videos|watch\/providers)$/,
+  /^\/person\/\d+$/, /^\/person\/\d+\/combined_credits$/,
 ];
 
 export function normalizeTmdbPath(path: string): string {

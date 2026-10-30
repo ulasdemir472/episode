@@ -97,4 +97,15 @@ Bu testler gerçek telefon FPS, Supabase gecikmesi veya internet hızını ölç
 
 ## Bir test geçtiğinde ne anlama gelir?
 
+Son arayüz değişiklikleri için eklenen regresyonlar:
+
+- `discover-screen.test.tsx`: Türkçe/İngilizce yıl menüsünden seçim ve temizleme; arama ve diğer filtrelerle uyum.
+- `library-screen.test.tsx`: durum, içerik ve sıralama menülerini birlikte kullanma; favoriler ve aramanın korunması.
+- `ProfileInsights.test.tsx`: eski Türkçe başlığın katalogdan yenilenmesi ve dil değişiminde doğru sorgunun yapılması.
+- `watch-wheel-screen.test.tsx`: eski odanın kendiliğinden açılmaması, yeni oturum ve yeniden girişte sıfırlama; açık oda bağlantılarının korunması.
+- `PeopleCredits.test.tsx`, `person-screen.test.tsx`: fotoğraftan kişi sayfasına ve filmografiden doğru yapıma geçiş; film/dizi filtresi, görsel hatası, yükleme hatası ve geçersiz bağlantı.
+- `catalog-service.test.ts` ve istemci/Deno katalog sözleşmesi testleri: kişi fotoğrafı ve birleşik filmografiyi izin verilen sunucu yollarından alma; yinelenen ve yetişkin içeriklerin elenmesi; dil parametresi ve film/dizi kimliklerinin korunması.
+
+Kişi verileri mevcut TMDB anahtarı ve katalog cache'i üzerinden alınır. Yeni bir ücretli servis kullanılmaz. TMDB geliştirici API'si, kaynak belirtmek şartıyla ticari olmayan kullanımda ücretsizdir; ticari kullanım için [TMDB lisans koşulları](https://developer.themoviedb.org/docs/faq) geçerlidir. Kişi yollarının çalışması için güncellenmiş `catalog-api` Edge Function da dağıtılmalıdır; veritabanı migration'ı gerekmez.
+
 Testin geçmesi yalnızca testte tarif edilen davranışın korunduğunu gösterir; tüm uygulamanın hatasız olduğunu garanti etmez. `pnpm validate` başarılı olduğunda tip, kod standardı, mevcut business kuralları ve temel performans bütçeleri birlikte doğrulanmış olur. Supabase migration/RLS, gerçek ağ, bildirim ve iOS cihaz akışları için ayrıca entegrasyon ve cihaz testleri gerekir.

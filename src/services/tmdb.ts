@@ -1,4 +1,5 @@
 import { EpisodeDetails, EpisodeRelease, Media, MediaType, SeriesDetails } from '@/domain/media';
+import type { PersonDetails, PersonSummary } from '@/domain/person';
 import { normalizeTmdbPath } from '../../supabase/functions/_shared/catalog-contract';
 import { dayOffset, scheduleSeasonNumbers } from '../../supabase/functions/_shared/episode-schedule';
 import { AsyncStorageCacheStore } from '@/services/cache/async-storage-cache-store';
@@ -46,6 +47,8 @@ type TmdbSeries = {
 };
 
 type TmdbMovie = { runtime?: number; overview?: string; original_title?: string; title?: string };
+type TmdbPerson = { id: number; name: string; profile_path?: string | null; biography?: string; character?: string };
+type TmdbPersonCredit = TmdbResult & { adult?: boolean; popularity?: number };
 type TmdbSeason = { episodes: { id: number; episode_number: number; season_number: number; name: string; overview: string; air_date?: string; runtime?: number; still_path?: string; vote_average: number }[] };
 type TmdbScheduleEpisode = { id: number; season_number: number; episode_number: number; name: string; air_date: string };
 type TmdbSchedule = { seasons: { season_number: number; air_date?: string }[]; last_episode_to_air?: TmdbScheduleEpisode | null; next_episode_to_air?: TmdbScheduleEpisode | null };
@@ -144,10 +147,14 @@ function mapMedia(item: TmdbResult, fallbackType: MediaType = 'movie', language?
     posterUrl: item.poster_path ? `${IMAGE_URL}/w500${item.poster_path}` : '',
     backdropUrl: item.backdrop_path ? `${IMAGE_URL}/w1280${item.backdrop_path}` : '',
     year: (item.release_date ?? item.first_air_date ?? '').slice(0, 4),
-    rating: Math.round(item.vote_average * 10) / 10,
+    rating: Math.round((item.vote_average || 0) * 10) / 10,
     genres: (item.genre_ids ?? item.genres?.map((genre) => genre.id) ?? []).map((id) => genreMap[id]).filter((value): value is string => Boolean(value)),
     runtimeMinutes: item.runtime,
   };
+}
+
+function mapPerson(person: TmdbPerson): PersonSummary {
+  return { id: person.id, name: person.name, character: person.character, profileUrl: person.profile_path ? `${IMAGE_URL}/w185${person.profile_path}` : '' };
 }
 
 async function invokeCatalog<T>(body: { service: 'tmdb'; path: string } | { service: 'omdb'; params: Record<string, string> }): Promise<T> {
@@ -190,6 +197,21 @@ export function createCatalogService(cacheStore: CacheStore) {
       const data = await tmdb<TmdbResult>(`/${type}/${id}?language=${getTmdbLanguage(language)}`, cachePolicies.seriesDetails);
       return mapMedia(data, type, language);
     },
+    async personDetails(id: number, language?: AppLanguage): Promise<PersonDetails> {
+      if (!Number.isSafeInteger(id) || id <= 0) throw new Error('Invalid person ID');
+      const lang = getTmdbLanguage(language);
+      const [person, filmography] = await Promise.all([
+        tmdb<TmdbPerson>(`/person/${id}?language=${lang}`, cachePolicies.seriesDetails),
+        tmdb<{ cast: TmdbPersonCredit[]; crew: TmdbPersonCredit[] }>(`/person/${id}/combined_credits?language=${lang}`, cachePolicies.seriesDetails),
+      ]);
+      const unique = new Map<string, Media>();
+      for (const credit of [...(filmography.cast ?? []), ...(filmography.crew ?? [])].sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0))) {
+        if (credit.adult || (credit.media_type !== 'movie' && credit.media_type !== 'tv') || !Number.isSafeInteger(credit.id) || credit.id <= 0) continue;
+        const key = `${credit.media_type}:${credit.id}`;
+        if (!unique.has(key)) unique.set(key, mapMedia(credit, credit.media_type, language));
+      }
+      return { ...mapPerson(person), biography: person.biography ?? '', credits: [...unique.values()] };
+    },
     async searchPage(query: string, page = 1, language?: AppLanguage) {
       const body = await tmdb<{ results: TmdbResult[]; total_pages: number }>(`/search/multi?language=${getTmdbLanguage(language)}&query=${encodeURIComponent(query.trim())}&page=${page}&include_adult=false`, cachePolicies.search);
       return { items: body.results.filter((item) => item.media_type !== 'person').map((item) => mapMedia(item, 'movie', language)), nextPage: page < Math.min(body.total_pages, 500) ? page + 1 : undefined };
@@ -207,11 +229,12 @@ export function createCatalogService(cacheStore: CacheStore) {
       const lang = getTmdbLanguage(language);
       const [providers, credits, videos] = await Promise.all([
         tmdb<{ results: Record<string, { link?: string; flatrate?: { provider_id: number; provider_name: string; logo_path?: string }[]; rent?: { provider_id: number; provider_name: string; logo_path?: string }[]; buy?: { provider_id: number; provider_name: string; logo_path?: string }[] }> }>(`/${media.type}/${media.id}/watch/providers`, cachePolicies.seriesDetails),
-        tmdb<{ cast: { id: number; name: string; character: string }[]; crew: { job: string; name: string }[] }>(`/${media.type}/${media.id}/credits?language=${lang}`, cachePolicies.seriesDetails),
+        tmdb<{ cast: TmdbPerson[]; crew: (TmdbPerson & { job: string })[] }>(`/${media.type}/${media.id}/credits?language=${lang}`, cachePolicies.seriesDetails),
         tmdb<{ results: { site: string; type: string; key: string }[] }>(`/${media.type}/${media.id}/videos?language=${lang}`, cachePolicies.seriesDetails),
       ]);
       const trailer = videos.results.find((video) => video.site === 'YouTube' && video.type === 'Trailer');
-      return { providers: providers.results[region], cast: credits.cast.slice(0, 8), director: credits.crew.find((person) => person.job === 'Director')?.name, trailerUrl: trailer ? `https://www.youtube.com/watch?v=${encodeURIComponent(trailer.key)}` : undefined };
+      const directors = [...new Map(credits.crew.filter((person) => person.job === 'Director').map((person) => [person.id, mapPerson(person)])).values()];
+      return { providers: providers.results[region], cast: credits.cast.slice(0, 12).map(mapPerson), directors, director: directors[0]?.name, trailerUrl: trailer ? `https://www.youtube.com/watch?v=${encodeURIComponent(trailer.key)}` : undefined };
     },
     async trending(language?: AppLanguage): Promise<Media[]> {
       const lang = getTmdbLanguage(language);

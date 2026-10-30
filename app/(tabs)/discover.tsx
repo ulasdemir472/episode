@@ -49,8 +49,8 @@ export default function DiscoverScreen() {
   const genre = genres.find((item) => item.en === genreName);
   const [year, setYear] = useState('');
   const [minRating, setMinRating] = useState(0);
-  const debouncedYear = useDebouncedValue(year, 450);
-  const selectedYear = /^\d{4}$/.test(debouncedYear) ? debouncedYear : '';
+  const selectedYear = year;
+  const latestYear = new Date().getFullYear() + 1;
   const { width } = useWindowDimensions();
   const columns = Math.max(2, Math.min(4, Math.floor((width - 48) / 158)));
   const cardWidth = (width - 48 - (columns - 1) * 12) / columns;
@@ -83,7 +83,7 @@ export default function DiscoverScreen() {
       {!searching && type !== 'all' && <ChoicePicker label={en ? 'Genre' : 'Tür'} value={genreName} onChange={setGenreName} closeLabel={en ? 'Close' : 'Kapat'} options={[{ value: '', label: en ? 'All genres' : 'Tüm türler' }, ...genres.filter((item) => type !== 'tv' || item.tv > 0).map((item) => ({ value: item.en, label: en ? item.en : item.tr }))]} />}
     </View>
     {!searching && type !== 'all' && <View style={styles.filterRow}>
-      <View style={styles.yearField}><Text style={styles.yearLabel}>{t(language, 'year')}</Text><TextInput accessibilityLabel={t(language, 'year')} placeholder={t(language, 'anyYear')} placeholderTextColor={colors.muted} value={year} onChangeText={(value) => setYear(value.replace(/[^0-9]/g, '').slice(0, 4))} keyboardType="number-pad" style={styles.yearInput} /></View>
+      <ChoicePicker label={t(language, 'year')} value={year} onChange={setYear} closeLabel={en ? 'Close' : 'Kapat'} options={[{ value: '', label: t(language, 'anyYear') }, ...Array.from({ length: latestYear - 1874 + 1 }, (_, index) => ({ value: String(latestYear - index), label: String(latestYear - index) }))]} />
       <ChoicePicker label={t(language, 'minRating')} value={minRating} onChange={setMinRating} closeLabel={en ? 'Close' : 'Kapat'} options={[{ value: 0, label: en ? 'Any rating' : 'Tüm puanlar' }, ...Array.from({ length: 20 }, (_, index) => ({ value: (index + 1) / 2, label: `${((index + 1) / 2).toLocaleString(en ? 'en-US' : 'tr-TR')}+` }))]} />
     </View>}
   </>;
@@ -91,7 +91,7 @@ export default function DiscoverScreen() {
 }
 
 const styles = StyleSheet.create({
-  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, filterRow: { flexDirection: 'row', gap: 10, marginHorizontal: spacing.lg, marginBottom: 12 }, yearField: { flex: 1, padding: 12, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface }, yearLabel: { color: colors.muted, fontSize: 11 }, yearInput: { color: colors.text, fontWeight: '700', fontSize: 13, marginTop: 5, padding: 0, minHeight: 23 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, filterRow: { flexDirection: 'row', gap: 8, marginHorizontal: spacing.lg, marginBottom: 8 },
   header: { padding: spacing.lg }, kicker: { color: colors.primary, fontSize: 10, letterSpacing: 1.7, fontWeight: '800' }, title: { color: colors.text, fontSize: 36, fontWeight: '900', letterSpacing: -1.2, marginTop: 3 }, search: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, height: 52, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, marginTop: spacing.lg }, input: { color: colors.text, flex: 1, fontSize: 15 },
   filters: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md, gap: spacing.sm }, typeFilter: { height: 42, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 15, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, filterActive: { backgroundColor: colors.primary, borderColor: colors.primary }, filterText: { color: colors.muted, fontSize: 12, fontWeight: '800' }, filterTextActive: { color: '#fff' },
   genres: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, gap: 7 }, genre: { paddingHorizontal: 13, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: colors.elevated }, genreActive: { backgroundColor: colors.text }, genreText: { color: colors.muted, fontSize: 11, fontWeight: '700' }, genreTextActive: { color: colors.background },
