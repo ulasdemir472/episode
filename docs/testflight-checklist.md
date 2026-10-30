@@ -17,6 +17,10 @@ Bu repoda `production` profili `production` güncelleme kanalını kullanır. `m
 
 ## Son arayüz ve kişi sayfası değişiklikleri
 
+- [ ] **Arkadaş profili → Ortak izlediklerimiz / Watched in common:** ortak yapım sayısı doğru; dokununca ayrı liste açılıyor. İkinizin de izlediği filmler ve bölüm izlediği diziler görünüyor. Sadece listeye eklediğiniz veya favorilediğiniz yapımlar sayılmıyor.
+- [ ] Ortak listede film/dizi filtresi ve arama çalışıyor. Yapıma dokununca doğru film/dizi detayı açılıyor; izlenmiş durumunu geri alınca ortak liste güncelleniyor. Ortak yapım yoksa açıklayıcı boş ekran var.
+- [ ] Arkadaş izleme geçmişini gizleyince ortak liste bağlantısı kayboluyor; doğrudan ortak liste bağlantısını açmak da geçmişi göstermiyor. Türkçe/İngilizce metinler ve geri dönüş çalışıyor.
+
 - [ ] **Keşfet:** seçim alanları daha ince; film/dizi seçince yılı klavye açmadan listeden seçebiliyorsun. Yıl, tür ve minimum puan birlikte çalışıyor; **Tüm yıllar / Any year** yıl filtresini kaldırıyor.
 - [ ] **Kütüphane:** durum, film/dizi ve sıralama seçenekleri açılır menülerden seçiliyor. Favoriler, arama ve toplu seçim çalışmaya devam ediyor.
 - [ ] **Ayarlar → Bildirimler:** metinlerin sol kenarları aynı hizada; anahtarlar ve telefon ayarları simgesi ortak sağ sütunda. Büyük sistem yazısında metinler anahtarların üstüne binmiyor.

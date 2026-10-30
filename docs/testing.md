@@ -99,6 +99,7 @@ Bu testler gerçek telefon FPS, Supabase gecikmesi veya internet hızını ölç
 
 Son arayüz değişiklikleri için eklenen regresyonlar:
 
+- `src/features/friends/__tests__`: ortak izleme hesabı, film/dizi kimlik ayrımı, profil bağlantısı ve sayaç, Türkçe/İngilizce liste/arama/filtreleme, gizli geçmiş ve önbellek sonrası erişim hatası, izlenmiş durumu değişince güncelleme, 1.000 kaydı aşan kütüphane ve eksik sayfa hatası. Filmlerde `completed`, dizilerde `completed` veya en az bir izlenmiş bölüm gerekir; favori/liste üyeliği yeterli değildir. Mevcut Supabase RLS ve görünürlük sorgusu kullanılır; yeni migration veya API gerekmez.
 - `discover-screen.test.tsx`: Türkçe/İngilizce yıl menüsünden seçim ve temizleme; arama ve diğer filtrelerle uyum.
 - `library-screen.test.tsx`: durum, içerik ve sıralama menülerini birlikte kullanma; favoriler ve aramanın korunması.
 - `ProfileInsights.test.tsx`: eski Türkçe başlığın katalogdan yenilenmesi ve dil değişiminde doğru sorgunun yapılması.

@@ -1,4 +1,5 @@
 import { requireSupabase } from '@/infrastructure/supabase/client';
+import type { Database } from '@/infrastructure/supabase/database.types';
 import { LibraryItem, Media } from '@/domain/media';
 import { parseReviewTarget } from '@/features/community/target';
 
@@ -150,6 +151,19 @@ export type ProfileActivity = {
 
 const PROGRESS_PAGE_SIZE = 1000;
 
+async function fetchAllProfileLibrary(friendId: string) {
+  const rows: Pick<Database['public']['Tables']['library_items']['Row'], 'media' | 'status' | 'progress'>[] = [];
+  for (let from = 0; ; from += PROGRESS_PAGE_SIZE) {
+    const result = await requireSupabase().from('library_items').select('media,status,progress')
+      .eq('user_id', friendId).order('media_type').order('media_id')
+      .range(from, from + PROGRESS_PAGE_SIZE - 1);
+    if (result.error) throw result.error;
+    const page = result.data ?? [];
+    rows.push(...page);
+    if (page.length < PROGRESS_PAGE_SIZE) return rows;
+  }
+}
+
 async function fetchAllProfileProgress(friendId: string) {
   const client = requireSupabase();
   const rows: { media_id: number; season_number: number; episode_number: number; runtime_minutes: number | null }[] = [];
@@ -173,24 +187,24 @@ function isMedia(value: unknown): value is Media {
 
 export async function fetchFriendActivity(_currentUserId: string, friendId: string): Promise<FriendActivity> {
   const client = requireSupabase();
-  const [profileResult, libraryResult, favoritesResult, ratingsResult, commentsResult, progressResult, visibilityResult] = await Promise.all([
+  const [profileResult, libraryRows, favoritesResult, ratingsResult, commentsResult, progressResult, visibilityResult] = await Promise.all([
     client.from('profiles').select('id,username,first_name,last_name,avatar_url,cover_url').eq('id', friendId).single(),
-    client.from('library_items').select('media,status,progress').eq('user_id', friendId).order('updated_at', { ascending: false }).limit(1000),
+    fetchAllProfileLibrary(friendId),
     client.from('favorites').select('media').eq('user_id', friendId).limit(50),
     client.from('ratings').select('target_key,score,updated_at').eq('user_id', friendId).order('updated_at', { ascending: false }).limit(500),
     client.from('comments').select('id,target_key,body,created_at,spoiler').eq('user_id', friendId).is('deleted_at', null).eq('moderation_status', 'visible').order('created_at', { ascending: false }).limit(500),
     fetchAllProfileProgress(friendId),
     client.rpc('can_view_profile_data', { owner_id: friendId }),
   ]);
-  const error = profileResult.error ?? libraryResult.error ?? favoritesResult.error ?? ratingsResult.error ?? commentsResult.error ?? visibilityResult.error;
+  const error = profileResult.error ?? favoritesResult.error ?? ratingsResult.error ?? commentsResult.error ?? visibilityResult.error;
   if (error) throw error;
   if (!profileResult.data) throw new Error('Profil bulunamadı.');
   const watchedByMedia = new Map<number, number>();
   for (const episode of progressResult) watchedByMedia.set(episode.media_id, (watchedByMedia.get(episode.media_id) ?? 0) + 1);
-  const library = (libraryResult.data ?? []).flatMap((row) => {
+  const library = libraryRows.flatMap((row) => {
     if (!isMedia(row.media)) return [];
     const storedProgress = row.progress && typeof row.progress === 'object' ? row.progress as LibraryItem['progress'] : undefined;
-    const watched = watchedByMedia.get(row.media.id) ?? storedProgress?.watched ?? 0;
+    const watched = row.media.type === 'tv' ? watchedByMedia.get(row.media.id) ?? storedProgress?.watched ?? 0 : 0;
     const progress = watched > 0 ? { ...storedProgress, watched, total: Math.max(storedProgress?.total ?? 0, watched) } : storedProgress;
     return [{ media: row.media, status: row.status, progress }];
   });

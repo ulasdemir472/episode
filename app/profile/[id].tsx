@@ -7,11 +7,14 @@ import { useQuery } from '@tanstack/react-query';
 import { MediaCard } from '@/components/MediaCard';
 import { ProfileActivityRow } from '@/components/ProfileActivityRow';
 import { ProfileInsights } from '@/components/ProfileInsights';
+import { CommonWatchedLink } from '@/components/CommonWatchedLink';
 import { Screen } from '@/components/Screen';
 import { WatchLevelBadge } from '@/components/WatchLevelBadge';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { fetchAcceptedFriendProfiles, fetchFriendActivity, ProfileActivity } from '@/features/friends/friends-repository';
 import { sameMedia } from '@/domain/media';
+import { commonWatched } from '@/features/friends/common-watched';
+import { useLibraryStore } from '@/store/library-store';
 import { formatWatchHours, useWatchMinutes } from '@/features/profile/watch-time';
 import { useProfileStore } from '@/store/profile-store';
 import { colors, radius, spacing } from '@/theme/tokens';
@@ -27,20 +30,22 @@ export default function FriendProfileScreen() {
   const en = useProfileStore((state) => state.language) === 'en';
   const { id } = useLocalSearchParams<{ id: string }>();
   const auth = useAuth();
+  const viewerId = auth.user?.id;
   const ownFavorites = useProfileStore((state) => state.favorites);
+  const ownLibrary = useLibraryStore((state) => state.items);
   const [libraryPage, setLibraryPage] = useState(0);
-  const query = useQuery({ queryKey: ['friend-profile', auth.user?.id, id], queryFn: () => fetchFriendActivity(auth.user!.id, id!), enabled: Boolean(auth.user && id), staleTime: 30_000 });
+  const query = useQuery({ queryKey: ['friend-profile', viewerId, id], queryFn: () => fetchFriendActivity(viewerId!, id!), enabled: Boolean(viewerId && id), staleTime: 30_000 });
   const { refetch } = query;
   useFocusEffect(useCallback(() => {
-    if (!auth.user || !id) return undefined;
+    if (!viewerId || !id) return undefined;
     void refetch();
     const interval = setInterval(() => void refetch(), 30_000);
     return () => clearInterval(interval);
-  }, [auth.user, id, refetch]));
+  }, [viewerId, id, refetch]));
   const data = query.data;
   const watchTime = useWatchMinutes(data?.library ?? [], data?.episodeRuntimes);
   if (query.isLoading) return <Screen><Header /><Text style={styles.state}>{en ? 'Loading profile…' : 'Profil yükleniyor…'}</Text></Screen>;
-  if (!data) return <Screen><Header /><View style={styles.stateBox}><Ionicons name="lock-closed-outline" size={28} color={colors.muted} /><Text style={styles.state}>{query.error instanceof Error ? query.error.message : (en ? 'Could not open profile.' : 'Profil açılamadı.')}</Text></View></Screen>;
+  if (query.isError || !data) return <Screen><Header /><View style={styles.stateBox}><Ionicons name="lock-closed-outline" size={28} color={colors.muted} /><Text style={styles.state}>{en ? 'Could not open profile.' : 'Profil açılamadı.'}</Text><Pressable accessibilityRole="button" onPress={() => refetch()}><Text style={styles.moreText}>{en ? 'Try again' : 'Tekrar dene'}</Text></Pressable></View></Screen>;
   const profile = data.profile;
   const mutualFavorites = data.favorites.filter((media) => ownFavorites.some((own) => sameMedia(own, media)));
   const name = `${profile.firstName} ${profile.lastName}`.trim() || (profile.username ? `@${profile.username}` : 'Episode');
@@ -72,6 +77,7 @@ export default function FriendProfileScreen() {
         <Stat value={data.watchedEpisodeCount} label={en ? 'Episodes' : 'Bölüm'} />
       </View>}
       {!data.historyVisible && <Text style={styles.empty}>{en ? 'This viewing history is private.' : 'Bu izleme geçmişi gizli.'}</Text>}
+      {data.historyVisible && auth.user && auth.user.id !== id && <CommonWatchedLink profileId={profile.id} count={commonWatched(ownLibrary, data.library).length} language={en ? 'en' : 'tr'} />}
       {!!mutualFavorites.length && <Section title={en ? 'Favorites you share' : 'Ortak favorileriniz'} count={mutualFavorites.length}><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal}>{mutualFavorites.map((media) => <MediaCard key={media.type + ':' + media.id} media={media} width={126} />)}</ScrollView></Section>}
       <FriendProfileFriendsPanel profileId={profile.id} profileName={name} />
       {data.historyVisible && <Section title={en ? 'Favorites' : 'Favorileri'} count={data.favorites.length}>
