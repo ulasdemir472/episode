@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { LibraryItem, LibraryStatus, Media, MediaRef, SeasonSummary, mediaKey, sameMedia } from '@/domain/media';
 import { acknowledge, changedKeys, ChangeJournal, revision } from '@/features/sync/change-journal';
+import { trackAnalytics } from '@/features/analytics/analytics-service';
 
 type LibraryState = {
   items: LibraryItem[];
@@ -69,6 +70,7 @@ export const useLibraryStore = create<LibraryState>()(persist((set, get) => ({
   recordTitleRuntime: (media, minutes) => set((state) => minutes > 0 && state.items.some((item) => sameMedia(item.media, media) && item.media.runtimeMinutes !== minutes) ? journal(state, { items: state.items.map((item) => sameMedia(item.media, media) ? { ...item, media: { ...item.media, runtimeMinutes: minutes } } : item) }) : state),
   upsert: (media, status) => set((state) => {
     const current = state.items.find((item) => sameMedia(item.media, media));
+    if (!current) trackAnalytics('library_item_added');
     const progress = current?.progress ? { ...current.progress, updatedAt: new Date().toISOString() } : undefined;
     return journal(state, { items: [{ media, status, progress, updatedAt: new Date().toISOString() }, ...state.items.filter((item) => !sameMedia(item.media, media))] });
   }),
@@ -85,6 +87,7 @@ export const useLibraryStore = create<LibraryState>()(persist((set, get) => ({
       delete episodeRuntimes[key];
     } else {
       watchedEpisodes[key] = true;
+      trackAnalytics('episode_marked');
       if (knownRuntime) episodeRuntimes[key] = knownRuntime;
     }
     const count = watchedCount(watchedEpisodes, media.id);
@@ -96,6 +99,7 @@ export const useLibraryStore = create<LibraryState>()(persist((set, get) => ({
   }),
   markThrough: (media, season, episode, seasons, runtimeMinutes) => set((state) => {
     const watchedEpisodes = { ...state.watchedEpisodes };
+    let marked = false;
     const episodeRuntimes = { ...state.episodeRuntimes };
     const currentRuntime = runtimeMinutes && runtimeMinutes > 0 ? runtimeMinutes : state.items.find((item) => sameMedia(item.media, media))?.progress?.runtimeMinutes;
     for (const item of seasons) {
@@ -103,11 +107,13 @@ export const useLibraryStore = create<LibraryState>()(persist((set, get) => ({
       const lastEpisode = item.number === season ? episode : item.episodeCount;
       for (let number = 1; number <= lastEpisode; number += 1) {
         const key = episodeKey(media.id, item.number, number);
+        if (!watchedEpisodes[key]) marked = true;
         watchedEpisodes[key] = true;
         if (currentRuntime && !episodeRuntimes[key]) episodeRuntimes[key] = currentRuntime;
       }
     }
     const total = seasons.reduce((sum, item) => sum + item.episodeCount, 0);
+    if (marked) trackAnalytics('episode_marked');
     const count = watchedCount(watchedEpisodes, media.id);
     const status: LibraryStatus = total > 0 && count >= total ? 'completed' : 'watching';
     const nextEpisode = status === 'completed' ? undefined : findNextEpisode(watchedEpisodes, media.id, seasons);

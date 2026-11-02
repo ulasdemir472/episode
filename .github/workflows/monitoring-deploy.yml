@@ -1,0 +1,12 @@
+name: Monitoring backend deployment
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: episode-deployment-${{ github.repository }}
+  cancel-in-progress: false
+jobs:
+  backend:
+    uses: ./.github/workflows/supabase-deploy.yml
+    secrets: inherit

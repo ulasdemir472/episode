@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
 const requiredSecrets = ['SUPABASE_ACCESS_TOKEN', 'SUPABASE_PROJECT_ID', 'EXPO_TOKEN'];
-const serverSecrets = ['TMDB_ACCESS_TOKEN', 'OMDB_API_KEY', 'EXPO_ACCESS_TOKEN'];
+const serverSecrets = ['TMDB_ACCESS_TOKEN', 'OMDB_API_KEY', 'EXPO_ACCESS_TOKEN', 'OTEL_EXPORTER_OTLP_ENDPOINT', 'OTEL_EXPORTER_OTLP_HEADERS', 'MONITORING_ENVIRONMENT', 'MONITORING_TRACE_SAMPLE_RATE'];
 
 export function projectReference(value) {
   const input = value.trim();
@@ -20,6 +20,7 @@ export function checkConfiguration(environment) {
   }
   const missing = requiredSecrets.filter((name) => !environment[name]?.trim());
   if (missing.length) throw new Error(`Missing GitHub Actions secrets: ${missing.join(', ')}`);
+  if (environment.MONITORING_EXPORT_ENABLED && !['true','false'].includes(environment.MONITORING_EXPORT_ENABLED)) throw new Error('MONITORING_EXPORT_ENABLED must be true or false.');
   return { ...environment, SUPABASE_PROJECT_ID: projectReference(environment.SUPABASE_PROJECT_ID) };
 }
 
@@ -102,6 +103,35 @@ export async function configureAndVerifyWorker(environment, request, {
   throw new Error('Notification worker did not complete within 180 seconds. Inspect Edge Function logs and pg_net responses.');
 }
 
+export async function configureMonitoringExport(environment, request, {
+  sleep = (milliseconds) => new Promise((done) => setTimeout(done, milliseconds)), now = Date.now,
+} = {}) {
+  const enabled = environment.MONITORING_EXPORT_ENABLED;
+  if (enabled === undefined || enabled === '') return;
+  if (!['true', 'false'].includes(enabled)) throw new Error('MONITORING_EXPORT_ENABLED must be true or false.');
+  const query = (sql, readOnly = false) => request('/database/query', 'POST', { query: sql, read_only: readOnly });
+  if (enabled === 'false') { await query('select public.configure_monitoring_export(false);'); return; }
+  const secrets = await request('/secrets');
+  const names = new Set(Array.isArray(secrets) ? secrets.map((secret) => secret.name) : []);
+  if (!['OTEL_EXPORTER_OTLP_ENDPOINT', 'OTEL_EXPORTER_OTLP_HEADERS'].every((name) => names.has(name))) throw new Error('Cloud export requires OTEL_EXPORTER_OTLP_ENDPOINT and OTEL_EXPORTER_OTLP_HEADERS server secrets.');
+  const result = await query('select public.invoke_monitoring_export()::text as request_id;');
+  const requestId = String(result?.[0]?.request_id ?? '');
+  if (!/^[1-9][0-9]{0,18}$/.test(requestId)) throw new Error('Monitoring export could not be scheduled.');
+  const deadline = now() + 60_000;
+  while (now() < deadline) {
+    const rows = await query(`select status_code, timed_out, content from net._http_response where id = ${requestId};`, true);
+    if (rows?.length) {
+      let payload;
+      try { payload = typeof rows[0].content === 'string' ? JSON.parse(rows[0].content) : rows[0].content; } catch { /* Fail below without logging secrets or upstream responses. */ }
+      if (rows[0].timed_out || rows[0].status_code !== 200 || payload?.exported !== true || !Number.isFinite(Date.parse(payload.collected_at))) throw new Error('Monitoring export verification failed. Cron was not enabled. Inspect the monitoring-export logs.');
+      await query('select public.configure_monitoring_export(true);');
+      return;
+    }
+    await sleep(3000);
+  }
+  throw new Error('Monitoring export did not complete within 60 seconds. Cron was not enabled.');
+}
+
 function runSupabase(args, environment) {
   const result = spawnSync('supabase', args, { env: environment, stdio: 'inherit', timeout: 300_000 });
   if (result.error || result.status !== 0) throw new Error(`Supabase ${args.slice(0, 2).join(' ')} failed. Deployment stopped.`);
@@ -131,6 +161,7 @@ export async function deploySupabase(environment, {
   run(['functions', 'deploy', '--project-ref', configuration.SUPABASE_PROJECT_ID, '--use-api'], cliEnvironment);
   log('Configuring and checking the notification worker.');
   await configureAndVerifyWorker(configuration, requestApi, { sleep, now });
+  await configureMonitoringExport(configuration, requestApi, { sleep, now });
   log('Supabase deployment and notification worker check passed.');
 }
 

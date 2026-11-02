@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
@@ -13,6 +13,7 @@ import { useProfileStore } from '@/store/profile-store';
 import { MotionPressable } from '@/components/MotionPressable';
 import { ChoicePicker } from '@/components/ChoicePicker';
 import { NotificationButton } from '@/components/NotificationButton';
+import { trackAnalytics } from '@/features/analytics/analytics-service';
 
 type TypeFilter = 'all' | MediaType;
 type Genre = { tr: string; en: string; movie: number; tv: number };
@@ -44,6 +45,7 @@ export default function DiscoverScreen() {
   const en = language === 'en';
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebouncedValue(query.trim(), 450);
+  useEffect(() => { if (debouncedQuery.length > 1) trackAnalytics('search_submitted'); }, [debouncedQuery]);
   const [type, setType] = useState<TypeFilter>('all');
   const [genreName, setGenreName] = useState('');
   const genre = genres.find((item) => item.en === genreName);

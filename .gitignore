@@ -5,6 +5,7 @@ coverage/
 .tooling/
 .env
 supabase/.env.local
+observability/.env
 supabase/.temp/
 *.jks
 *.p8

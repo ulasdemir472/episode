@@ -1,12 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.118.0';
 import { handleAccountDeletion } from '../_shared/account-deletion.ts';
+import { observeRequest } from '../_shared/observability.ts';
 
 Deno.serve(async (request) => {
   const url = Deno.env.get('SUPABASE_URL');
   const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!url || !key) return new Response('Server configuration missing', { status: 503 });
   const admin = createClient(url, key, { auth: { persistSession: false } });
-  return handleAccountDeletion(request, {
+  return observeRequest(request, { service: 'delete-account', environment: Deno.env.toObject(), admin, handler: () => handleAccountDeletion(request, {
     authenticate: async (token) => { const { data, error } = await admin.auth.getUser(token); return error ? undefined : data.user?.id; },
     removeFiles: async (userId) => {
       for (const bucket of ['avatars', 'comment-images']) {
@@ -27,5 +28,5 @@ Deno.serve(async (request) => {
       }
     },
     deleteUser: async (userId) => { const { error } = await admin.auth.admin.deleteUser(userId); if (error) throw error; },
-  });
+  }) });
 });

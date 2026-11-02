@@ -1,3 +1,7 @@
 [functions.notification-worker]
 # The function verifies a private, database-generated Vault secret before any work.
 verify_jwt = false
+
+[functions.monitoring-export]
+# Validates its own database-generated Vault secret before reading aggregates.
+verify_jwt = false

@@ -2,6 +2,7 @@ import { requireSupabase } from '@/infrastructure/supabase/client';
 import type { Database } from '@/infrastructure/supabase/database.types';
 import { LibraryItem, Media } from '@/domain/media';
 import { parseReviewTarget } from '@/features/community/target';
+import { trackAnalytics } from '@/features/analytics/analytics-service';
 
 export type PublicProfile = {
   id: string;
@@ -115,6 +116,7 @@ export async function sendFriendRequest(currentUserId: string, targetUserId: str
   if (existing.data) return;
   const { error } = await client.from('friendships').insert({ requester_id: currentUserId, addressee_id: targetUserId, status: 'pending' });
   if (error) throw error;
+  trackAnalytics('friend_request_sent', currentUserId);
 }
 
 export async function respondFriendRequest(friendshipId: string, status: 'accepted' | 'declined'): Promise<void> {

@@ -1,0 +1,26 @@
+name: episode-observability
+
+services:
+  lgtm:
+    # Local learning environment. This image is not the production collector.
+    image: ${LGTM_IMAGE:-grafana/otel-lgtm@sha256:4c8056c9c05fcb3c8fd93800e85334bfd79b4d0271b47a54a121a64af41fe1fe}
+    ports:
+      - "127.0.0.1:3300:3000"
+      - "127.0.0.1:4318:4318"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-episode-local-only}
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_USERS_DEFAULT_THEME: dark
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /otel-lgtm/grafana/conf/provisioning/dashboards/episode/episode-ops-dashboard.json
+    volumes:
+      - episode-lgtm-data:/data
+      - ./grafana/episode-ops-dashboard.json:/otel-lgtm/grafana/conf/provisioning/dashboards/episode/episode-ops-dashboard.json:ro
+      - ./grafana/episode-users-dashboard.json:/otel-lgtm/grafana/conf/provisioning/dashboards/episode/episode-users-dashboard.json:ro
+      - ./grafana/dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/episode.yaml:ro
+    restart: "no"
+    stop_grace_period: 30s
+
+volumes:
+  episode-lgtm-data:
