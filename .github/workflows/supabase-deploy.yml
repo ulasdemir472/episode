@@ -14,6 +14,14 @@ on:
         required: false
       EXPO_ACCESS_TOKEN:
         required: false
+      OTEL_EXPORTER_OTLP_ENDPOINT:
+        required: false
+      OTEL_EXPORTER_OTLP_HEADERS:
+        required: false
+      MONITORING_ENVIRONMENT:
+        required: false
+      MONITORING_TRACE_SAMPLE_RATE:
+        required: false
 permissions:
   contents: read
 jobs:
@@ -58,4 +66,9 @@ jobs:
           TMDB_ACCESS_TOKEN: ${{ secrets.TMDB_ACCESS_TOKEN }}
           OMDB_API_KEY: ${{ secrets.OMDB_API_KEY }}
           EXPO_ACCESS_TOKEN: ${{ secrets.EXPO_ACCESS_TOKEN }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+          MONITORING_ENVIRONMENT: ${{ secrets.MONITORING_ENVIRONMENT }}
+          MONITORING_TRACE_SAMPLE_RATE: ${{ secrets.MONITORING_TRACE_SAMPLE_RATE }}
+          MONITORING_EXPORT_ENABLED: ${{ vars.MONITORING_EXPORT_ENABLED }}
         run: node scripts/deploy-supabase.mjs

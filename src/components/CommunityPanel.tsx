@@ -16,6 +16,7 @@ import { isSupabaseConfigured, supabase } from '@/infrastructure/supabase/client
 import { CommunityComment, useCommunityStore } from '@/store/community-store';
 import { useProfileStore } from '@/store/profile-store';
 import { colors, radius, spacing } from '@/theme/tokens';
+import { trackAnalytics } from '@/features/analytics/analytics-service';
 
 export function CommunityPanel({ targetKey, title, canReview }: { targetKey: string; title?: string; canReview: boolean }) {
   const [text, setText] = useState('');
@@ -72,6 +73,7 @@ export function CommunityPanel({ targetKey, title, canReview }: { targetKey: str
       if (pendingImage) imageUrl = await uploadCommentImage({ userId: auth.user.id, base64: pendingImage.base64, mimeType: pendingImage.mimeType });
       useCommunityStore.getState().addComment(targetKey, auth.user.id, author, text.trim() || '📷', { parentCommentId: replyTo?.id, imageUrl, spoiler });
       queued = true;
+      trackAnalytics('comment_submitted', auth.user.id);
       setText(''); setPendingImage(undefined); setReplyTo(undefined);
       await auth.flushSync();
       await queryClient.invalidateQueries({ queryKey: communityKey });

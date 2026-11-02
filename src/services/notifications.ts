@@ -8,6 +8,7 @@ import { supabase } from '@/infrastructure/supabase/client';
 import { registerPushToken } from '@/features/notifications/device-service';
 import { notificationRoute } from '@/features/notifications/notification-routing';
 import { markNotificationsRead } from '@/features/notifications/notification-repository';
+import { trackAnalytics } from '@/features/analytics/analytics-service';
 
 export async function enableNotifications(userId?: string): Promise<boolean> {
   if (Platform.OS === 'web') return false;
@@ -58,6 +59,7 @@ export function NotificationBridge() {
     const data = response.notification.request.content.data ?? {};
     // A notification from a previous account must never open in another account.
     if (!data.userId || data.userId === userId) {
+      trackAnalytics('notification_opened', userId);
       router.push(notificationRoute(data) as Href);
       if (typeof data.notificationId === 'string') void markNotificationsRead(userId, data.notificationId).then(() => queryClient.invalidateQueries({ queryKey: ['notification-count', userId] })).catch(() => undefined);
     }

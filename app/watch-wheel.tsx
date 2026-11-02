@@ -11,6 +11,7 @@ import { Media } from '@/domain/media';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { fetchFriendships } from '@/features/friends/friends-repository';
 import { addWheelEntry, createWatchWheel, fetchWatchWheels, fetchWheelEntries, removeWheelEntry, spinWatchWheel } from '@/features/watch-wheel/watch-wheel-repository';
+import { trackAnalytics } from '@/features/analytics/analytics-service';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { catalogService } from '@/services/tmdb';
 import { supabase } from '@/infrastructure/supabase/client';
@@ -104,6 +105,7 @@ export default function WatchWheelScreen() {
     try {
       const picked = await spinWatchWheel(resolvedActiveId!, activeWheel?.spunAt);
       if (session.current !== startedIn) return;
+      trackAnalytics('watch_wheel_spun', userId);
       const pickedIndex = choices.findIndex((item) => item.media.type === picked.type && item.media.id === picked.id);
       setWinner(undefined);
       rotation.setValue(0);
